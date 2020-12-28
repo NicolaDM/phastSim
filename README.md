@@ -1,5 +1,5 @@
 # phastSim
-fast sequence evolution simulation for SARS-CoV-2 and similar.
+Fast sequence evolution simulation for SARS-CoV-2 and similar.
 
 Input a reference genome to be used as root (sars-cov-2 example provided), and a newick tree, and this script will simulate sequence evolution using a Gillespie algorithm and efficiently storing ancestral genomes.
 This approach is more efficient than alternative ones when branch lengths are short, such as in sars-cov-2 and other genomic epidelimiological datasets.
