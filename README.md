@@ -7,3 +7,9 @@ When a large proportion of the genome is expected to mutate on each branch, howe
 Output can be created in fasta and/or phylip format. 
 The standard output is however given as a list of modified bases wrt the reference for each sample.
 The history of mutation events can also be created and stored in an annotated newick format.
+
+An example command line is:
+
+python3 efficientSimuSARS2.py --path /simulations_folder/ --seed 7 --createFasta --createNewick --createPhylip --treeFile rob-11-7-20_new.newick --scale 3.0
+
+In order to work it will need installation of several python modules including ete3 and numpy.
