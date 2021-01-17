@@ -10,7 +10,7 @@ import time
 
 #NOW RATE VARIATION AND HYPERMUTABILITY
 
-parser = argparse.ArgumentParser(description='Run simulations about the effective alignment size (EASi).')
+parser = argparse.ArgumentParser(description='Efficiently simulate sequence evolution along phylogenies with short branches.')
 parser.add_argument('--path',default="", help='Path where to run simulations.')
 parser.add_argument('--reference',default="MN908947.3.fasta", help='File containing the reference genome to be used as root genome. To be found in the folder specified with --path.')
 parser.add_argument('--treeFile',default="exampleTree.tree", help='Name of file containing the tree used to simulate sequences (assumed within the --path and in newick format).')
