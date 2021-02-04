@@ -4,6 +4,15 @@ from ete3 import Tree
 import time
 
 
+# CONSTANTS
+# possible alleles
+class Constants:
+    def __init__(self):
+        self.alleles = {"A": 0, "C": 1, "G": 2, "T": 3, "a": 0, "c": 1, "g": 2, "t": 3, "u": 3, "U": 3}
+        self.allelesList = ["A", "C", "G", "T"]
+        self.nAlleles = 4
+
+
 def setup_argument_parser():
     parser = argparse.ArgumentParser(
         description='Efficiently simulate sequence evolution along phylogenies with short branches.')
@@ -102,4 +111,11 @@ def setup_argument_parser():
                         action="store_true")
     return parser
 
+
+
+
+class phastSim:
+    def __init__(self, args):
+        self.args = args
+        self.const = Constants()
 

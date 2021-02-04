@@ -32,6 +32,11 @@ allow mixtures of different models for different parts of the genome (e.g. codin
 parser = phastSim.setup_argument_parser()
 args = parser.parse_args()
 
+# instantiate a phastSim run. This class holds all arguments and constants, which can be easily called as e.g.
+# phastSim.args.path or phastSim.const.alleles
+phastSim = phastSim.phastSim(args=args)
+
+
 pathSimu=args.path
 reference=args.reference
 rootGenomeLength=args.rootGenomeLength
@@ -61,10 +66,7 @@ omegaCategoryRates=args.omegaCategoryRates
 
 
 
-#possible alleles
-alleles={"A":0,"C":1,"G":2,"T":3,"a":0,"c":1,"g":2,"t":3,"u":3,"U":3}
-allelesList=["A","C","G","T"]
-nAlleles=4
+
 
 
 if rootGenomeLength==0:
