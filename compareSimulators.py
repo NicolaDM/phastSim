@@ -8,15 +8,6 @@ import argparse
 from ete3 import Tree
 import time
 
-#NICOLA THINGS TO DO: 
-#allow codon models
-
-#ALLOW RANDOM ROOT GENOME in phastSim?
-#allow discretised gamma distribution in phastSim like in the others?
-
-
-
-
 #script to compare the running time of phastSim with pyvolve, seq-gen and indelible.
 
 # python2 compareSimulators.py --path /Users/demaio/Desktop/coronavirus/simulations/ --nLeaves 100 --categoryProbs 0.2 0.2 0.2 0.2 0.2 --categoryRates 0.01 0.1 0.2 0.5 1.0 --pyvolveSim --seqgenSim --indelibleSim
@@ -92,13 +83,14 @@ if codon:
 	print("Extracting and concatenating CDSs for codon model")
 	newRef=""
 	for g in geneEnds:
-		newRef+=ref[g[0]-1:g[1]]
+		newRef+=ref[g[0]+2:g[1]-3]
 	ref=newRef
 	print("new Ref length: "+str(len(ref)))
 	fileRef=open(pathSimu+reference+"_new.fa","w")
 	fileRef.write(">reference\n"+ref+"\n")
 	fileRef.close()
 	reference=reference+"_new.fa"
+	
 
 #define the mutation matrix
 if len(mutationRates)==12:

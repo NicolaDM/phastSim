@@ -8,9 +8,15 @@ import argparse
 from ete3 import Tree
 import time
 
-#NICOLA THINGS TO DO: 
+#Script that simulates sequence evolution along a given input phylogeny.
+#The algorithm (based on Gillespie approach) is fast for trees with short branches, as for example in genomic epidemiology.
+#It can be instead be slower than traditional approaches when longer branch lengths are considered.
 
-#ALLOW RANDOM ROOT GENOME ?
+#example run:
+#python3 efficientSimuSARS2.py --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 --scale 2.0 --hyperMutProbs 0.01 --hyperMutRates  100.0 --codon --treeFile rob-11-7-20.newick --createFasta
+
+#Possible future extensions: 
+#add wrapper to simulate whole sars-cov-2 genome evolution ?
 #CONSIDER TO EXTEND THE RANGE OF ALLOWED MODELS to allow easier specification og e.g. HKY, JC, etc?
 #ALLOW discretized gamma?
 #ALLOW INDELS ?
@@ -20,6 +26,8 @@ import time
 parser = argparse.ArgumentParser(description='Efficiently simulate sequence evolution along phylogenies with short branches.')
 parser.add_argument('--path',default="", help='Path where to run simulations.')
 parser.add_argument('--reference',default="MN908947.3.fasta", help='File containing the reference genome to be used as root genome. To be found in the folder specified with --path.')
+parser.add_argument("--rootGenomeLength", help="A root genome of this size is randomly created. default=0 means that the root genome is instead taken as in the reference file.", type=int, default=0)
+parser.add_argument("--rootGenomeFrequencies", help="Frequencies of different states (non-stop codons or nucleotides depending on the simulations). If not provided, will use those for SARS-CoV-2 reference genome.", type=float, nargs='+',  default=[1.0])
 parser.add_argument('--treeFile',default="exampleTree.tree", help='Name of file containing the tree used to simulate sequences (assumed within the --path and in newick format).')
 parser.add_argument('--scale',default=1.0,type=float, help='Scale the simulation tree by this amount (default 1.0). Branch lengths are assumed in terms of expected substitutions per site (more or less, as frequencies changes through time, total mutation rate might also  change).')
 parser.add_argument("--seed", help="Seed for random simulator in genes simulations", type=int, default=1)
@@ -44,6 +52,8 @@ args = parser.parse_args()
 
 pathSimu=args.path
 reference=args.reference
+rootGenomeLength=args.rootGenomeLength
+rootGenomeFrequencies=args.rootGenomeFrequencies
 np.random.seed(args.seed)
 seed=args.seed
 scale=args.scale
@@ -68,33 +78,89 @@ omegaCategoryProbs=args.omegaCategoryProbs
 omegaCategoryRates=args.omegaCategoryRates
 
 
-#collect reference
-file=open(pathSimu+reference)
-line=file.readline()
-ref=""
-while line!="":
+
+#possible alleles
+alleles={"A":0,"C":1,"G":2,"T":3,"a":0,"c":1,"g":2,"t":3,"u":3,"U":3}
+allelesList=["A","C","G","T"]
+nAlleles=4
+
+
+if rootGenomeLength==0:
+	#collect reference
+	file=open(pathSimu+reference)
 	line=file.readline()
-	ref+=line.replace("\n","")
-file.close()
-print("\n Finished reading reference genome at "+pathSimu+reference+" with "+str(len(ref))+" bases.")
-refList=list(ref)
+	ref=""
+	while line!="":
+		line=file.readline()
+		ref+=line.replace("\n","")
+	file.close()
+	print("\n Finished reading reference genome at "+pathSimu+reference+" with "+str(len(ref))+" bases.")
+	refList=list(ref)
+else:
+	refList=""
+	if codon:
+		if len(rootGenomeFrequencies)<2:
+			print("Using codon frequencies from the SARS-CoV-2 genome to define root genome:")
+			rootGenomeFrequencies=[0.03787801, 0.01775209, 0.02012592, 0.03694912, 0.03034369, 0.00701827, 0.00371555, 0.03292393, 0.01610073, 0.00412839, 0.00485086, 0.01630715, 0.01620394, 0.00970172, 0.02012592, 0.02652493, 0.02611209, 0.00588296, 0.01145629, 0.01341728, 0.01620394, 0.00299308, 0.00175457, 0.01971308, 0.00175457, 0.00350913, 0.0010321,  0.00877284, 0.01042419, 0.0094953, 0.00464444, 0.02755702, 0.0326143,  0.0188874,  0.01269481, 0.0336464, 0.01857777, 0.00959851, 0.00258025, 0.03694912, 0.01228197, 0.01063061, 0.00175457, 0.03478171, 0.01826814, 0.01135308, 0.0115595,  0.03932294, 0.0,         0.01795851, 0.0,         0.02817628, 0.01878419, 0.0052637, 0.00123852, 0.02229332, 0.0,         0.00681185, 0.01135308, 0.02353184, 0.02580246, 0.01506863, 0.01692641, 0.03591702]
+			print(rootGenomeFrequencies)
+		elif len(rootGenomeFrequencies)!=61 and len(rootGenomeFrequencies)!=64:
+			print("Error, wrong number of root frequencies given")
+			exit()
+		if len(rootGenomeFrequencies)==61:
+			rootGenomeFrequencies=rootGenomeFrequencies[:48]+[0.0]+[rootGenomeFrequencies[48]]+[0.0]+rootGenomeFrequencies[49:54]+[0.0]+rootGenomeFrequencies[54:]
+		sum=0.0
+		for i in rootGenomeFrequencies:
+			sum+=i
+		for i in range(64):
+			rootGenomeFrequencies[i]=rootGenomeFrequencies[i]/sum
+		if sum>1.000001 or sum<0.999999:
+			print("\n Normalizing root state frequencies. New frequencies:")
+			print(rootGenomeFrequencies)
+		
+		if (rootGenomeLength%3)!=0:
+			print("Codon model, but root genome length not multiple of 3. Simulating "+str(int(rootGenomeLength/3))+" codons.")
+		cods=np.random.choice(np.arange(64), size=int(rootGenomeLength/3), replace=True, p=rootGenomeFrequencies)
+		codonAllelesList=[]
+		for i1 in range(4):
+			for i2 in range(4):
+				for i3 in range(4):
+					codonAllelesList.append(allelesList[i1]+allelesList[i2]+allelesList[i3])
+		codList=[]
+		for i in range(int(rootGenomeLength/3)):
+			codList.append(codonAllelesList[cods[i]])
+		ref="".join(codList)
+		refList=list(ref)
+	else:
+		if len(rootGenomeFrequencies)<2:
+			print("Using nucleotide frequencies from the SARS-CoV-2 genome to define root genome:")
+			rootGenomeFrequencies=[0.29943483931378123, 0.18366050229074005, 0.19606728421897468, 0.32083737417650404]
+			print(rootGenomeFrequencies)
+		elif len(rootGenomeFrequencies)!=4:
+			print("Error, wrong number of root frequencies given")
+			exit()
+		sum=0.0
+		for i in rootGenomeFrequencies:
+			sum+=i
+		for i in range(4):
+			rootGenomeFrequencies[i]=rootGenomeFrequencies[i]/sum
+		if sum>1.000001 or sum<0.999999:
+			print("\n Normalizing root state frequencies. New frequencies:")
+			print(rootGenomeFrequencies)
+			
+		refList=np.random.choice(allelesList, size=int(rootGenomeLength), replace=True, p=rootGenomeFrequencies)
+		ref="".join(refList)
+
 
 if codon and (len(ref)%3)!=0:
 	print("Warning: when simulating under a codon model, the ancestral genome length has to be a multiple of 3.")
 	print("I will remove the last few bases of the reference and assume the rest is made of coding sequence.")
 	ref=ref[:len(ref)-(len(ref)%3)]
-	#exit()
 
 #SARS-CoV-2 genome annotation - not used yet but will be useful when simulating under a codon model.
 #geneEnds=[[266,13468],[13468,21555],[21563,25384],[25393,26220],[26245,26472],[26523,27191],[27202,27387],[27394,27759],[27894,28259],[28274,29533],[29558,29674]]
 
 #substitution rates
 if len(mutationRates)==12:
-	#possible alleles
-	alleles={"A":0,"C":1,"G":2,"T":3,"a":0,"c":1,"g":2,"t":3,"u":3,"U":3}
-	allelesList=["A","C","G","T"]
-	nAlleles=4
-
 	print("\n Assuming UNREST nucleotide mutation model.")
 	mutMatrix=np.zeros((4,4),dtype=float)
 	index=0
@@ -288,8 +354,6 @@ if hierarchy:
 						isIntoStop[i1,i2,i3]=True
 						#print(codonAllelesList[i1]+" "+codonAllelesList[cod2]+" into stop.")
 				indeces2[i2]=indeces[i2]
-		#exit()
-		#print(isNonsynom)
 					
 	#	codonRates= np.zeros(nCodons,9)
 	#CODONS: maybe don't create all the matrices from the start (might have too large an memory and time preparation cost).
@@ -1103,7 +1167,7 @@ if createPhylip:
 	print("Total time after writing phylip file: "+str(time3))
 
 elapsedTime = time.time() - start
-print("Overall time for new simulation approach: "+str(elapsedTime))
+print("Overall time: "+str(elapsedTime))
 
 
 
