@@ -25,6 +25,7 @@ We allow to specify mutation rate variation in multiple ways:
 3) Possibly jointly with the 2 above, a new model of rate variation describing the hypermutability observed in SARS-CoV-2. This model is triggered by options --hyperMutProbs and --hyperMutRates . In this model, small proportions of sites are given a (possibly much higher) mutation rate. For any of these sites, only one specific mutation rate is enhanced. For example, one site might have only the G->T mutation rate increased 100-fold, while all other rates at that site remain the same. This is to model the effects observed in SARS-CoV-2 and possibly attributable to APOBEC and ROS activity (or other still unclear mechanisms) https://doi.org/10.1089/1066527041410472 .
 
 A codon model is built on top of a model of nucleotide mutation and mutation rate variation, as explained in the two paragraphs above.
+See also https://doi.org/10.1093/molbev/mss266 .
 In addition, a codon model has a codon-specific omega parameter that increases or decreases the rate of nonsynonymous changes at the given codon.
 Variation in omega can be define with a finit number of omega classes, or with a continuous gamma distribution.
 
