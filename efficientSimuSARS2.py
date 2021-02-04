@@ -8,6 +8,8 @@ import argparse
 from ete3 import Tree
 import time
 import phastSim
+from importlib import reload
+reload(phastSim)
 
 """
 Script that simulates sequence evolution along a given input phylogeny.
@@ -33,9 +35,9 @@ parser = phastSim.setup_argument_parser()
 args = parser.parse_args()
 
 # instantiate a phastSim run. This class holds all arguments and constants, which can be easily called as e.g.
-# phastSim.args.path or phastSim.const.alleles
-phastSim = phastSim.phastSim(args=args)
-
+# sim_run.args.path or sim_run.const.alleles
+sim_run = phastSim.phastSim_run(args=args)
+self=sim_run
 
 pathSimu=args.path
 reference=args.reference
@@ -64,81 +66,19 @@ omegaAlpha=args.omegaAlpha
 omegaCategoryProbs=args.omegaCategoryProbs
 omegaCategoryRates=args.omegaCategoryRates
 
+alleles = {"A": 0, "C": 1, "G": 2, "T": 3, "a": 0, "c": 1, "g": 2, "t": 3, "u": 3, "U": 3}
+allelesList = ["A", "C", "G", "T"]
+nAlleles = 4
+
+
+# initialise the root genome. Reads either from file or creates a genome in codon or nucleotide mode
+ref, refList = sim_run.init_rootGenome()
 
 
 
 
 
-if rootGenomeLength==0:
-	#collect reference
-	file=open(pathSimu+reference)
-	line=file.readline()
-	ref=""
-	while line!="":
-		line=file.readline()
-		ref+=line.replace("\n","")
-	file.close()
-	print("\n Finished reading reference genome at "+pathSimu+reference+" with "+str(len(ref))+" bases.")
-	refList=list(ref)
-else:
-	refList=""
-	if codon:
-		if len(rootGenomeFrequencies)<2:
-			print("Using codon frequencies from the SARS-CoV-2 genome to define root genome:")
-			rootGenomeFrequencies=[0.03787801, 0.01775209, 0.02012592, 0.03694912, 0.03034369, 0.00701827, 0.00371555, 0.03292393, 0.01610073, 0.00412839, 0.00485086, 0.01630715, 0.01620394, 0.00970172, 0.02012592, 0.02652493, 0.02611209, 0.00588296, 0.01145629, 0.01341728, 0.01620394, 0.00299308, 0.00175457, 0.01971308, 0.00175457, 0.00350913, 0.0010321,  0.00877284, 0.01042419, 0.0094953, 0.00464444, 0.02755702, 0.0326143,  0.0188874,  0.01269481, 0.0336464, 0.01857777, 0.00959851, 0.00258025, 0.03694912, 0.01228197, 0.01063061, 0.00175457, 0.03478171, 0.01826814, 0.01135308, 0.0115595,  0.03932294, 0.0,         0.01795851, 0.0,         0.02817628, 0.01878419, 0.0052637, 0.00123852, 0.02229332, 0.0,         0.00681185, 0.01135308, 0.02353184, 0.02580246, 0.01506863, 0.01692641, 0.03591702]
-			print(rootGenomeFrequencies)
-		elif len(rootGenomeFrequencies)!=61 and len(rootGenomeFrequencies)!=64:
-			print("Error, wrong number of root frequencies given")
-			exit()
-		if len(rootGenomeFrequencies)==61:
-			rootGenomeFrequencies=rootGenomeFrequencies[:48]+[0.0]+[rootGenomeFrequencies[48]]+[0.0]+rootGenomeFrequencies[49:54]+[0.0]+rootGenomeFrequencies[54:]
-		sum=0.0
-		for i in rootGenomeFrequencies:
-			sum+=i
-		for i in range(64):
-			rootGenomeFrequencies[i]=rootGenomeFrequencies[i]/sum
-		if sum>1.000001 or sum<0.999999:
-			print("\n Normalizing root state frequencies. New frequencies:")
-			print(rootGenomeFrequencies)
-		
-		if (rootGenomeLength%3)!=0:
-			print("Codon model, but root genome length not multiple of 3. Simulating "+str(int(rootGenomeLength/3))+" codons.")
-		cods=np.random.choice(np.arange(64), size=int(rootGenomeLength/3), replace=True, p=rootGenomeFrequencies)
-		codonAllelesList=[]
-		for i1 in range(4):
-			for i2 in range(4):
-				for i3 in range(4):
-					codonAllelesList.append(allelesList[i1]+allelesList[i2]+allelesList[i3])
-		codList=[]
-		for i in range(int(rootGenomeLength/3)):
-			codList.append(codonAllelesList[cods[i]])
-		ref="".join(codList)
-		refList=list(ref)
-	else:
-		if len(rootGenomeFrequencies)<2:
-			print("Using nucleotide frequencies from the SARS-CoV-2 genome to define root genome:")
-			rootGenomeFrequencies=[0.29943483931378123, 0.18366050229074005, 0.19606728421897468, 0.32083737417650404]
-			print(rootGenomeFrequencies)
-		elif len(rootGenomeFrequencies)!=4:
-			print("Error, wrong number of root frequencies given")
-			exit()
-		sum=0.0
-		for i in rootGenomeFrequencies:
-			sum+=i
-		for i in range(4):
-			rootGenomeFrequencies[i]=rootGenomeFrequencies[i]/sum
-		if sum>1.000001 or sum<0.999999:
-			print("\n Normalizing root state frequencies. New frequencies:")
-			print(rootGenomeFrequencies)
-			
-		refList=np.random.choice(allelesList, size=int(rootGenomeLength), replace=True, p=rootGenomeFrequencies)
-		ref="".join(refList)
 
-
-if codon and (len(ref)%3)!=0:
-	print("Warning: when simulating under a codon model, the ancestral genome length has to be a multiple of 3.")
-	print("I will remove the last few bases of the reference and assume the rest is made of coding sequence.")
-	ref=ref[:len(ref)-(len(ref)%3)]
 
 #SARS-CoV-2 genome annotation - not used yet but will be useful when simulating under a codon model.
 #geneEnds=[[266,13468],[13468,21555],[21563,25384],[25393,26220],[26245,26472],[26523,27191],[27202,27387],[27394,27759],[27894,28259],[28274,29533],[29558,29674]]
