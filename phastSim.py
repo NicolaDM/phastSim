@@ -138,6 +138,7 @@ class phastSim_run:
             print("I will remove the last few bases of the reference and assume the rest is made of coding sequence.")
             ref = ref[:len(ref) - (len(ref) % 3)]
 
+        self.ref_len = len(ref)
         return ref, refList
 
 
@@ -263,7 +264,7 @@ class phastSim_run:
         return mutMatrix
 
 
-    def init_gamma_rates(self, ref):
+    def init_gamma_rates(self):
         categoryProbs = self.args.categoryProbs
         categoryRates = self.args.categoryRates
 
@@ -272,7 +273,7 @@ class phastSim_run:
             if not self.hierarchy:
                 print("Error, continuous rate model only allowed with hierarchical approach")
                 exit()
-            gammaRates = np.random.gamma(self.args.alpha, 1.0 / self.args.alpha, size=len(ref))
+            gammaRates = np.random.gamma(self.args.alpha, 1.0 / self.args.alpha, size=self.ref_len)
 
         else:
             nCat = len(categoryProbs)
@@ -292,16 +293,50 @@ class phastSim_run:
             print(categoryProbs)
             print(categoryRates)
             # sample category for each site of the genome
-            gammaRates = np.zeros(len(ref))
-            categories = np.random.choice(nCat, size=len(ref), p=categoryProbs)
-            for i in range(len(ref)):
+            gammaRates = np.zeros(self.ref_len)
+            categories = np.random.choice(nCat, size=self.ref_len, p=categoryProbs)
+            for i in range(self.ref_len):
                 gammaRates[i] = categoryRates[categories[i]]
 
         invariable = self.args.invariable
         if invariable >= 0.000000001:
             print(f"Proportion of invariable {invariable}")
-            categoriesInv = np.random.choice(2, size=len(ref), p=[1.0 - invariable, invariable])
+            categoriesInv = np.random.choice(2, size=self.ref_len, p=[1.0 - invariable, invariable])
             gammaRates[np.nonzero(categoriesInv)[0]] = 0.0
 
         return gammaRates
 
+
+    def init_hypermutation_rates(self):
+        hyperMutProbs = self.args.hyperMutProbs
+        hyperMutRates = self.args.hyperMutRates
+
+        # dealing with hypermutation rates
+        nProbs = len(hyperMutProbs)
+        nRates = len(hyperMutRates)
+
+        if nProbs != nRates:
+            print(f"Issue with number of hypermutation category probs {nProbs} and number of hypermutation"
+                  f" category rates {nRates}")
+            exit()
+        for i in hyperMutRates:
+            if i <= 1.0:
+                print("It doesn't make sense to have hypermutability class with mutability <=1.0 . hyperMutRates:")
+                print(hyperMutRates)
+                exit()
+
+        sumHyper = np.sum(hyperMutProbs)
+        if sumHyper > 0.1:
+            print("WARNING: hypermutable sites are supposed to be rare, but total proportion is " + str(sum))
+        if sumHyper > 1.0:
+            exit()
+        newHyperMutProbs = [1.0 - sumHyper] + hyperMutProbs
+
+        # sample hypermutability for each site of the genome.
+        hyperCategories = np.random.choice(nProbs + 1, size=self.ref_len, p=newHyperMutProbs)
+        print("Hypermutation class probabilities:")
+        print(newHyperMutProbs)
+        print("Hypermutation class rates:")
+        print(hyperMutRates)
+
+        return hyperCategories, hyperMutRates

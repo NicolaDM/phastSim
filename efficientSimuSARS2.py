@@ -78,9 +78,10 @@ ref, refList = sim_run.init_rootGenome()
 mutMatrix = sim_run.init_substitution_rates()
 
 # set up gamma rates
-gammaRates = sim_run.init_gamma_rates(ref=ref)
+gammaRates = sim_run.init_gamma_rates()
 
-
+# set up hypermutation rates
+hyperCategories, hyperMutRates = sim_run.init_hypermutation_rates()
 
 
 #SARS-CoV-2 genome annotation - not used yet but will be useful when simulating under a codon model.
@@ -89,31 +90,6 @@ gammaRates = sim_run.init_gamma_rates(ref=ref)
 
 
 
-
-#dealing with hypermutation rates		
-nHyper=len(hyperMutProbs)		
-if nHyper!=len(hyperMutRates):
-	print("Issue with number of hypermutation category probs "+str(len(hyperMutProbs))+" and number of hypermutation category rates "+str(len(hyperMutRates)))
-	exit()
-for i in hyperMutRates:
-	if i<=1.0:
-		print("It doesn't make sense to have hypermutability class with mutability <=1.0 . hyperMutRates:")
-		print(hyperMutRates)
-		exit()
-sumHyper=0.0
-for i in hyperMutProbs:
-	sumHyper+=i
-if sumHyper>0.1:
-	print("WARNING: hypermutable sites are supposed to be rare, but total proportion is "+str(sum))
-if sumHyper>1.0:
-	exit()
-newHyperMutProbs=[1.0-sumHyper]+hyperMutProbs
-#sample hypermutability for each site of the genome.
-hyperCategories=np.random.choice(nHyper+1,size=len(ref),p=newHyperMutProbs)
-print("Hypermutation class probabilities:")
-print(newHyperMutProbs)
-print("Hypermutation class rates:")
-print(hyperMutRates)
 
 
 
