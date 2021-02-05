@@ -154,54 +154,7 @@ if hierarchy:
 
 		
 	
-	#Function to simulate evolution on one branch,using ETE tree structure and using the genome-wide hierarchy structure.
-	# given details of the parent node, it generates details of the child node, and updates the hierarchy accordingly.
-	#To simulate evolution on the whole tree, it needs to be called on the root.
-	def mutateBranchETEhierarchy(childNode,parentGenomeNode,level):
-		#branch length above the current node
-		bLen=childNode.dist
-		currTime=0.0
-		#if newick output is requested, prepare format
-		if createNewick:
-			childNode.mutAnnotation=[]
-		#Initialize child rate and allele numbers with parent ones
-		rate=parentGenomeNode.rate
-		childNode.mutations=[]
-	
-		#Sample new mutation event with Gillespie algorithm
-		currTime+=np.random.exponential(scale=1.0/rate)
-		if verbose:
-			print("\n Node "+childNode.name+" BLen: "+str(bLen)+" first sampled time: "+str(currTime)+" ; mutation rate: "+str(rate))
-		#for the first mutation event at this node, create a new root genome node of the appropriate level. 
-		#otherwise, use the one you already have.
-		if currTime<bLen:
-			newGenomeNode =phastSim.genomeNode(level=level)
-			newGenomeNode.belowNodes=list(parentGenomeNode.belowNodes)
-		else:
-			newGenomeNode=parentGenomeNode
-		while currTime<bLen:
-			#Now, sample which type of mutation event it is (from which nucleotide to which nucleotide)
-			rand=np.random.random()*rate
-			if verbose:
-				print("Selecting new mutation event. Rate "+str(rate)+" random value "+str(rand))
-			mutEvent=genome_tree.findPos(rand,newGenomeNode,level)
-			childNode.mutations.append(mutEvent)
-			if createNewick:
-				childNode.mutAnnotation.append(allelesList[mutEvent[1]]+str(mutEvent[0]+1)+allelesList[mutEvent[2]])
-			rate=newGenomeNode.rate
-			if verbose:
-				print("New total rate "+str(rate))
-			currTime+=np.random.exponential(scale=1.0/rate)
-			if verbose:
-				print("new time "+str(currTime)+", rate "+str(rate)+" mutation events:")
-				print(childNode.mutations)
-		
-		if verbose:
-			print("mutations at the end:")
-			print(childNode.mutations)
-		#now mutate children of the current node, calling this function recursively on the node children.
-		for c in childNode.children:
-			mutateBranchETEhierarchy(c,newGenomeNode,level+1)
+
 	
 
 
@@ -502,7 +455,7 @@ print("Total time after preparing for simulations: "+str(time2))
 
 #Run sequence evolution simulation along tree
 if hierarchy:
-	mutateBranchETEhierarchy(t,genome_tree.genomeRoot,1)
+	genome_tree.mutateBranchETEhierarchy(t,genome_tree.genomeRoot,1, createNewick=sim_run.args.createNewick)
 else:
 	muts=[]
 	for c in range(sim_run.nCat):

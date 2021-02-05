@@ -710,6 +710,58 @@ class GenomeTree:
             return mutEvent
 
 
+    def mutateBranchETEhierarchy(self, childNode, parentGenomeNode, level, createNewick):
+        # Function to simulate evolution on one branch,using ETE tree structure
+        # and using the genome-wide hierarchy structure.
+        # given details of the parent node, it generates details of the child node, and updates the hierarchy accordingly.
+        # To simulate evolution on the whole tree, it needs to be called on the root.
+
+        # branch length above the current node
+        bLen = childNode.dist
+        currTime = 0.0
+        # if newick output is requested, prepare format
+        if createNewick:
+            childNode.mutAnnotation = []
+        # Initialize child rate and allele numbers with parent ones
+        rate = parentGenomeNode.rate
+        childNode.mutations = []
+
+        # Sample new mutation event with Gillespie algorithm
+        currTime += np.random.exponential(scale=1.0 / rate)
+        if self.verbose:
+            print(f"\n Node {childNode.name} BLen: {bLen} first sampled time: {currTime}; mutation rate: {rate}")
+        # for the first mutation event at this node, create a new root genome node of the appropriate level.
+        # otherwise, use the one you already have.
+        if currTime < bLen:
+            newGenomeNode = genomeNode(level=level)
+            newGenomeNode.belowNodes = list(parentGenomeNode.belowNodes)
+        else:
+            newGenomeNode = parentGenomeNode
+        while currTime < bLen:
+            # Now, sample which type of mutation event it is (from which nucleotide to which nucleotide)
+            rand = np.random.random() * rate
+            if self.verbose:
+                print("Selecting new mutation event. Rate " + str(rate) + " random value " + str(rand))
+            mutEvent = self.findPos(rand, newGenomeNode, level)
+            childNode.mutations.append(mutEvent)
+            if createNewick:
+                childNode.mutAnnotation.append(self.allelesList[mutEvent[1]] +
+                                               str(mutEvent[0] + 1) +
+                                               self.allelesList[mutEvent[2]])
+            rate = newGenomeNode.rate
+            if self.verbose:
+                print(f"New total rate {rate}")
+            currTime += np.random.exponential(scale=1.0 / rate)
+            if self.verbose:
+                print(f"new time {currTime}, rate {rate} mutation events:")
+                print(childNode.mutations)
+
+        if self.verbose:
+            print("mutations at the end:")
+            print(childNode.mutations)
+        # now mutate children of the current node, calling this function recursively on the node children.
+        for c in childNode.children:
+            self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick)
 
 
 # node representing an element of the genome hierarchy, summarizing the total rate of the nodes below it,
