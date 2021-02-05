@@ -340,3 +340,65 @@ class phastSim_run:
         print(hyperMutRates)
 
         return hyperCategories, hyperMutRates
+
+
+    def init_codon_substitution_model(self):
+        # define codon substitution model
+        if not self.hierarchy:
+            print("Error: codon model only allowed with hierarchical model.")
+            exit()
+
+        omegaAlpha = self.args.omegaAlpha
+        omegaCategoryProbs = self.args.omegaCategoryProbs
+        omegaCategoryRates = self.args.omegaCategoryRates
+
+        nCodons = int(self.ref_len / 3)
+        print("Using a codon model")
+
+        if omegaAlpha >= 0.000000001:
+            print("Using a continuous gamma distribution with parameter alpha=" + str(
+                omegaAlpha) + " for variation in omega across codons.")
+            omegas = np.random.gamma(omegaAlpha, 1.0 / omegaAlpha, size=nCodons)
+        else:
+            nCatOmega = len(omegaCategoryProbs)
+            nRateOmega = len(omegaCategoryRates)
+
+            sum_probs = np.sum(omegaCategoryProbs)
+            for i in range(nCatOmega):
+                omegaCategoryProbs[i] = omegaCategoryProbs[i] / sum_probs
+            if sum_probs > 1.000001 or sum_probs < 0.999999:
+                print("\n Normalizing probabilities of omega categories. New probabilities:")
+                print(omegaCategoryProbs)
+
+            if nCatOmega != nRateOmega:
+                print(f"Issue with number of omega category probs {nCatOmega} and number of "
+                      f"omega category rates {nRateOmega}")
+                exit()
+            print("Using a discrete distribution for variation in omega across codons.")
+            print(omegaCategoryProbs)
+            print(omegaCategoryRates)
+
+            # sample category for each site of the genome
+            omegas = np.zeros(nCodons)
+            omegaCategories = np.random.choice(nCatOmega, size=nCodons, p=omegaCategoryProbs)
+            for i in range(nCodons):
+                omegas[i] = omegaCategoryRates[omegaCategories[i]]
+
+        return omegas
+
+
+
+def check_start_stop_codons(ref, gammaRates, omegas):
+    # if first codon is a start codon, or last is a stop codon, don't allow them to evolve
+    # if ref[0:3]=="ATG" or ref[0:3]=="atg" or ref[0:3]=="AUG" or ref[0:3]=="aug":
+    if ref[0:3] in ["ATG", "atg", "AUG", "aug"]:
+        gammaRates[0] = 0.0
+        gammaRates[1] = 0.0
+        gammaRates[2] = 0.0
+    # stopCodons=["TAA","TGA","TAG","tag","tga","taa","UAG","UAA","UGA","uaa","uag","uga"]
+    stopCodons = ["TAA", "TGA", "TAG"]
+    if ref[-2:] in stopCodons:
+        omegas[-1] = 0.0
+
+    return gammaRates, omegas
+

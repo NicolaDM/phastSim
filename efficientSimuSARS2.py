@@ -83,60 +83,15 @@ gammaRates = sim_run.init_gamma_rates()
 # set up hypermutation rates
 hyperCategories, hyperMutRates = sim_run.init_hypermutation_rates()
 
+# set up codon substitution model
+if sim_run.args.codon:
+	omegas = sim_run.init_codon_substitution_model()
+	gammaRates, omegas = phastSim.check_start_stop_codons(ref=ref, gammaRates=gammaRates, omegas=omegas)
+
 
 #SARS-CoV-2 genome annotation - not used yet but will be useful when simulating under a codon model.
 #geneEnds=[[266,13468],[13468,21555],[21563,25384],[25393,26220],[26245,26472],[26523,27191],[27202,27387],[27394,27759],[27894,28259],[28274,29533],[29558,29674]]
 
-
-
-
-
-
-
-#define codon substitution model
-if codon and (not hierarchy):
-	print("Error: codon model only allowed with hierarchical model.")
-	exit()
-if codon:
-	nCodons=int(len(ref)/3)
-	print("Using a codon model")
-	stopCodons=["TAA","TGA","TAG"]
-	if omegaAlpha>=0.000000001:
-		print("Using a continuous gamma distribution with parameter alpha="+str(omegaAlpha)+" for variation in omega across codons.")
-		omegas=np.random.gamma(omegaAlpha,1.0/omegaAlpha,size=nCodons)
-	else:
-		nCatOmega=len(omegaCategoryProbs)
-		sum=0.0
-		for i in omegaCategoryProbs:
-			sum+=i
-		for i in range(nCatOmega):
-			omegaCategoryProbs[i]=omegaCategoryProbs[i]/sum
-		if sum>1.000001 or sum<0.999999:
-			print("\n Normalizing probabilities of omega categories. New probabilities:")
-			print(omegaCategoryProbs)
-
-		if nCatOmega!=len(omegaCategoryRates):
-			print("Issue with number of omega category probs "+str(len(omegaCategoryProbs))+" and number of omega category rates "+str(len(omegaCategoryRates)))
-			exit()
-		print("Using a discrete distribution for variation in omega across codons.")
-		print(omegaCategoryProbs)
-		print(omegaCategoryRates)
-		
-		#sample category for each site of the genome
-		omegas=np.zeros(nCodons)
-		omegaCategories=np.random.choice(nCatOmega,size=nCodons,p=omegaCategoryProbs)
-		for i in range(nCodons):
-			omegas[i]=omegaCategoryRates[omegaCategories[i]]
-		#if first codon is a start codon, or last is a stop codon, don't allow them to evolve
-		#if ref[0:3]=="ATG" or ref[0:3]=="atg" or ref[0:3]=="AUG" or ref[0:3]=="aug":
-		if ref[0:3]=="ATG":
-			gammaRates[0]=0.0
-			gammaRates[1]=0.0
-			gammaRates[2]=0.0
-		#stopCodons=["TAA","TGA","TAG","tag","tga","taa","UAG","UAA","UGA","uaa","uag","uga"]
-		if ref[-2:] in stopCodons:
-			omegas[-1]=0.0
-	
 
 
 
