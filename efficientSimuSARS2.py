@@ -77,6 +77,8 @@ ref, refList = sim_run.init_rootGenome()
 # set up substitution rates
 mutMatrix = sim_run.init_substitution_rates()
 
+# set up gamma rates
+gammaRates = sim_run.init_gamma_rates(ref=ref)
 
 
 
@@ -87,43 +89,6 @@ mutMatrix = sim_run.init_substitution_rates()
 
 
 
-if alpha>=0.000000001:
-	print("Using a continuous gamma rate distribution with parameter alpha="+str(alpha))
-	if not hierarchy:
-		print("Error, continuous rate model only allowed with hierarchycal approach")
-		exit()
-	gammaRates=np.random.gamma(alpha,1.0/alpha,size=len(ref))
-	
-else:
-		nCat=len(categoryProbs)
-		sum=0.0
-		for i in categoryProbs:
-			sum+=i
-		for i in range(nCat):
-			categoryProbs[i]=categoryProbs[i]/sum
-		if sum>1.000001 or sum<0.999999:
-			print("\n Normalizing probabilities of site categories. New probabilities:")
-			print(categoryProbs)
-
-		if nCat!=len(categoryRates):
-			print("Issue with number of category probs "+str(len(categoryProbs))+" and number of category rates "+str(len(categoryRates)))
-			exit()
-		print("Using a discrete distribution for variation in rates across the genome.")
-		print(categoryProbs)
-		print(categoryRates)
-		#sample category for each site of the genome
-		gammaRates=np.zeros(len(ref))
-		categories=np.random.choice(nCat,size=len(ref),p=categoryProbs)
-		for i in range(len(ref)):
-			gammaRates[i]=categoryRates[categories[i]]
-			
-if invariable>=0.000000001:
-	print("Proportion of invariable "+str(invariable))
-	categoriesInv=np.random.choice(2,size=len(ref),p=[1.0-invariable,invariable])
-	for i in range(len(ref)):
-		if categoriesInv[i]>0:
-			gammaRates[i]=0.0
-	print(gammaRates)
 
 #dealing with hypermutation rates		
 nHyper=len(hyperMutProbs)		

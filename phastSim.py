@@ -118,6 +118,8 @@ class phastSim_run:
     def __init__(self, args):
         self.args = args
         self.const = Constants()
+        self.hierarchy = not self.args.noHierarchy
+
 
     def init_rootGenome(self):
         # initialise a genome either from a file or creating a new one
@@ -260,4 +262,46 @@ class phastSim_run:
         print(mutMatrix)
         return mutMatrix
 
+
+    def init_gamma_rates(self, ref):
+        categoryProbs = self.args.categoryProbs
+        categoryRates = self.args.categoryRates
+
+        if self.args.alpha >= 0.000000001:
+            print(f"Using a continuous gamma rate distribution with parameter alpha={self.args.alpha}")
+            if not self.hierarchy:
+                print("Error, continuous rate model only allowed with hierarchical approach")
+                exit()
+            gammaRates = np.random.gamma(self.args.alpha, 1.0 / self.args.alpha, size=len(ref))
+
+        else:
+            nCat = len(categoryProbs)
+            nRates = len(categoryRates)
+            sum_probs = np.sum(categoryProbs)
+            for i in range(nCat):
+                categoryProbs[i] = categoryProbs[i] / sum_probs
+
+            if sum_probs > 1.000001 or sum_probs < 0.999999:
+                print("\n Normalizing probabilities of site categories. New probabilities:")
+                print(categoryProbs)
+
+            if nCat != nRates:
+                print(f"Issue with number of category probs {nCat} and number of category rates {nRates}")
+                exit()
+            print("Using a discrete distribution for variation in rates across the genome.")
+            print(categoryProbs)
+            print(categoryRates)
+            # sample category for each site of the genome
+            gammaRates = np.zeros(len(ref))
+            categories = np.random.choice(nCat, size=len(ref), p=categoryProbs)
+            for i in range(len(ref)):
+                gammaRates[i] = categoryRates[categories[i]]
+
+        invariable = self.args.invariable
+        if invariable >= 0.000000001:
+            print(f"Proportion of invariable {invariable}")
+            categoriesInv = np.random.choice(2, size=len(ref), p=[1.0 - invariable, invariable])
+            gammaRates[np.nonzero(categoriesInv)[0]] = 0.0
+
+        return gammaRates
 
