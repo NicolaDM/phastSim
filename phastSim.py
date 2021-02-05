@@ -767,7 +767,7 @@ class GenomeTree_hierarchical:
 
 
 class GenomeTree_simpler:
-    def __init__(self, nCat, ref, mutMatrix, categories, categoryRates, hyperMutRates, hyperCategories, file):
+    def __init__(self, nCat, ref, mutMatrix, categories, categoryRates, hyperMutRates, hyperCategories, file, verbose):
         self.nCat = nCat
         self.ref = ref
         self.mutMatrix = mutMatrix
@@ -777,6 +777,7 @@ class GenomeTree_simpler:
         self.hyperCategories = hyperCategories
 
         self.file = file
+        self.verbose = verbose
 
         const = Constants()
         self.alleles = const.alleles
@@ -834,6 +835,269 @@ class GenomeTree_simpler:
         self.extras = extras
         self.totAlleles = totAlleles
         self.positions = positions
+
+
+    def normalize_rates(self, scale):
+        norm = self.totMut / len(self.ref)
+        print(f"\n Total cumulative mutation rate per site before normalization: {norm}")
+
+        # We rescale by the input normalization factor, this is the same as rescaling
+        # all the branch lengths by this rescaling factor
+        norm = norm / scale
+        print(f"\n After rescaling: {norm}")
+
+        # Now normalize mutation rates so that, at the start,
+        # the expected number of substitutions per unit branch length is 1?
+        for i in range(4):
+            for j in range(4):
+                self.mutMatrix[i][j] = self.mutMatrix[i][j] / norm
+                for c in range(self.nCat):
+                    if j != i:
+                        self.totMutMatrix[c][i][j] = self.totMutMatrix[c][i][j] / norm
+        for e in range(len(self.extras)):
+            self.extras[e][0] = self.extras[e][0] / norm
+        self.totMut = self.totMut / norm
+
+        if self.verbose:
+            print("Base-wise total mutation rates:")
+            print(self.totMutMatrix)
+            print("Normalized mutation rates:")
+            print(self.mutMatrix)
+
+
+
+    def mutateBranchETE(self, childNode, parentMuts, parentTotAlleles, parentRate, extrasParent, createNewick):
+        # Function to simulate evolution on one branch,using ETE tree structure;
+        # given details of the parent node, it generates details of the child node.
+        # To simulate whole tree, it needs to be called on root.
+
+        bLen = childNode.dist
+        currTime = 0.0
+        # if newick output is requested, prepare format
+        if createNewick:
+            childNode.mutAnnotation = []
+        # Initialize child rate and allele numbers with parent ones
+        rate = parentRate
+        childTotAlleles = []
+        childMutations = []
+        for c in range(self.nCat):
+            childTotAlleles.append(list(parentTotAlleles[c]))
+            childMutations.append([[], [], [], []])
+            # Initialize child mutation list with parent one
+            for i in range(4):
+                for k in range(len(parentMuts[c][i])):
+                    childMutations[c][i].append(list(parentMuts[c][i][k]))
+        extrasChild = []
+        for e in range(len(extrasParent)):
+            extrasChild.append(list(extrasParent[e]))
+
+        # Sample new mutation event with Gillespie algorithm
+        currTime += np.random.exponential(scale=1.0 / rate)
+        if self.verbose:
+            print(f"\n Node {childNode.name} BLen: {bLen}. Mutations at start:")
+            print(parentMuts)
+            print("num alleles at start:")
+            print(parentTotAlleles)
+            print(f"tot rate at start: {parentRate}")
+            print(f"First sampled time: {currTime}; mutation rate: {rate}")
+
+        while currTime < bLen:
+            # Now, sample which type of mutation event it is (from which nucleotide to which nucleotide)
+            rand = np.random.random() * rate
+            if self.verbose:
+                print(f"Selecting new mutation event. Rate {rate} random value {rand}")
+            tot = 0.0
+            found = False
+            hyperExtra = False
+            for c in range(self.nCat):
+                for i in range(4):
+                    for j in range(4):
+                        if j != i:
+                            tot += childTotAlleles[c][i] * self.mutMatrix[i][j] * self.categoryRates[c]
+                            # print("i "+str(i)+" j "+str(j)+" tot "+str(tot))
+                            if rand < (tot):
+                                found = True
+                                break
+                    if found:
+                        break
+                if found:
+                    break
+            if not found:
+                # now use extras vector for hypermutable sites
+                for e in range(len(extrasChild)):
+                    tot += extrasChild[e][0]
+                    if rand < (tot):
+                        found = True
+                        hyperExtra = True
+                        extra = extrasChild.pop(e)
+                        break
+            if not found:
+                print("Error in selecting mutation type")
+                exit()
+
+            if hyperExtra:
+                # element already removed from extraChild list, now use info in extra to add, remove or modify entry from mutations list, amend total rates, etc.
+                a = self.alleles[self.ref[extra[1]]]
+                extraRate = extra[0]
+                rate -= extraRate
+                pos = extra[1]
+                pos2 = extra[2]
+                c = extra[3]
+                hyp = extra[4]
+                i = extra[5]
+                j = extra[6]
+                if self.verbose:
+                    print(f"Hypermutation genome position {pos + 1} category {c} hypCat {hyp}"
+                          f" allele {i} allele position {pos2} to {j}")
+                if createNewick:
+                    childNode.mutAnnotation.append(self.allelesList[i] + str(pos + 1) + self.allelesList[j])
+
+                m = 0
+                included = False
+                while m < len(childMutations[c][a]):
+                    if childMutations[c][a][m][0] == pos2:
+                        if self.verbose:
+                            print("Position had already mutated")
+                        if childMutations[c][a][m][1] != i:
+                            print("Error, mutation should have been recorded as into hypermutable allele.")
+                            print(childMutations[c][a][m])
+                            print(extra)
+                            print(self.ref[extra[1]])
+                            print(c)
+                            print(a)
+                            exit()
+                        childMutations[c][a][m][1] = j
+                        included = True
+                        break
+                    elif childMutations[c][a][m][0] < pos2:
+                        m += 1
+                    else:
+                        if self.ref[pos] != self.allelesList[i]:
+                            print("Error, hypermutable allele should have been the reference.")
+                            exit()
+                        childMutations[c][a].insert(m, [pos2, j])
+                        if self.verbose:
+                            print("New mutation has been introduced")
+                            print(childMutations[c][a][m])
+                        included = True
+                        break
+                if not included:
+                    childMutations[c][a].append([pos2, j])
+
+
+            else:
+                # Now, sample the specific position of the genome (among those with the mutated alleles) that mutates.
+                mutatedBasePos = np.random.randint(childTotAlleles[c][i])
+                if self.verbose:
+                    print(f"mutation position {mutatedBasePos} category {c} allele {i} to {j}")
+
+                # in this case, we are mutating a position that was not mutated before.
+                # We need to add one entry to the mutation list without removing any old one.
+                if mutatedBasePos < self.totAlleles[c][i] - len(childMutations[c][i]):
+                    # print("New mutation")
+                    newMutPos = mutatedBasePos
+                    m = 0
+                    while m < len(childMutations[c][i]):
+                        if childMutations[c][i][m][0] <= newMutPos:
+                            newMutPos += 1
+                            m += 1
+                        else:
+                            break
+                    childMutations[c][i].insert(m, [newMutPos, j])
+                    if createNewick:
+                        childNode.mutAnnotation.append(
+                            self.allelesList[i] + str(self.positions[c][i][newMutPos][0] + 1) + self.allelesList[j])
+
+                    infoExtra = self.positions[c][i][newMutPos]
+                    if infoExtra[1] > 0:
+                        if infoExtra[2] == i:
+                            # remove hypermutation from extras
+                            if self.verbose:
+                                print(f"removing from extras {infoExtra[0]} {i} {j}")
+                            removed = False
+                            for e in range(len(extrasChild)):
+                                if infoExtra[0] == extrasChild[e][1]:
+                                    extra = extrasChild.pop(e)
+                                    rate -= extra[0]
+                                    removed = True
+                                    break
+                            if not removed:
+                                print("Error, hyper mutation not removed")
+                                exit()
+                            elif self.verbose:
+                                print("Hyper mutation removed by normal mutation")
+                                print(extra)
+                        elif infoExtra[2] == j:
+                            extraRate = self.mutMatrix[i][j] * self.categoryRates[c] * \
+                                        (self.hyperMutRates[infoExtra[1] - 1] - 1.0)
+                            extrasChild.append(
+                                [extraRate, infoExtra[0], newMutPos, c, infoExtra[1], infoExtra[2], infoExtra[3]])
+                            rate += extraRate
+
+                # in this case, we are mutating a position that was already mutated.
+                # this means that one item from the mutation list needs to be removed or modified,
+                # and no item needs to be added.
+                else:
+                    newMutatedBasePos = mutatedBasePos - (self.totAlleles[c][i] - len(childMutations[c][i]))
+                    if self.verbose:
+                        print("Modifying pre-existing mutation")
+                        print(newMutatedBasePos)
+                    added = False
+                    for i2 in range(4):
+                        if i2 != i:
+                            for m in range(len(childMutations[c][i2])):
+                                if childMutations[c][i2][m][1] == i:
+                                    if newMutatedBasePos == 0:
+                                        if createNewick:
+                                            childNode.mutAnnotation.append(self.allelesList[i] + str(
+                                                self.positions[c][i2][childMutations[c][i2][m][0]][0] + 1) +
+                                                                           self.allelesList[j])
+                                        infoExtra = self.positions[c][i2][childMutations[c][i2][m][0]]
+                                        if infoExtra[1] > 0:
+                                            if infoExtra[2] == i:
+                                                # remove hypermutation from extras
+                                                for e in range(len(extrasChild)):
+                                                    if infoExtra[0] == extrasChild[e][1]:
+                                                        extra = extrasChild.pop(e)
+                                                        rate -= extra[0]
+                                                        break
+                                            elif infoExtra[2] == j:
+                                                extraRate = self.mutMatrix[i][j] * self.categoryRates[c] * (
+                                                        self.hyperMutRates[infoExtra[1] - 1] - 1.0)
+                                                extrasChild.append(
+                                                    [extraRate, infoExtra[0], childMutations[c][i2][m][0], c,
+                                                     infoExtra[1],
+                                                     infoExtra[2], infoExtra[3]])
+                                                rate += extraRate
+                                        if j == i2:
+                                            if self.verbose:
+                                                print("Deleted mutation \n\n\n")
+                                            del childMutations[c][i2][m]
+                                        else:
+                                            childMutations[c][i2][m][1] = j
+                                        added = True
+                                        break
+                                    newMutatedBasePos -= 1
+                        if added:
+                            break
+
+            childTotAlleles[c][i] -= 1
+            childTotAlleles[c][j] += 1
+            rate += self.mutMatrix[i][i] * self.categoryRates[c]
+            rate -= self.mutMatrix[j][j] * self.categoryRates[c]
+
+            currTime += np.random.exponential(scale=1.0 / rate)
+            if self.verbose:
+                print(f"new time {currTime}, rate {rate} mutation events:")
+                print(childMutations)
+
+        if self.verbose:
+            print("mutations at the end:")
+            print(childMutations)
+        childNode.mutations = childMutations
+        # now mutate children of the current node, calling this function recursively on the node children.
+        for c in childNode.children:
+            self.mutateBranchETE(c, childMutations, childTotAlleles, rate, extrasChild, createNewick)
 
 
 
