@@ -765,6 +765,45 @@ class GenomeTree_hierarchical:
 
 
 
+    def writeGenomeShort(self, node, file, mutDict):
+        # function to write a succint output iteratively
+        # update dictionary
+        for m in node.mutations:
+            nuc = self.allelesList[m[2]]
+            if nuc != self.ref[m[0]]:
+                mutDict[m[0] + 1] = nuc
+            else:
+                del mutDict[m[0] + 1]
+        # print leaf entry to file
+        if node.is_leaf():
+            file.write(">" + node.name + "\n")
+            mutList = list(mutDict.keys())
+            mutList.sort()
+            for m in mutList:
+                file.write(str(m) + " " + mutDict[m] + "\n")
+        # pass dictionary to children
+        else:
+            for c in node.children:
+                self.writeGenomeShort(c, file, mutDict)
+        # de-update the dictionary so it can be used by siblings etc.
+        for n in range(len(node.mutations)):
+            m = node.mutations[len(node.mutations) - (n + 1)]
+            nuc = self.allelesList[m[1]]
+            if nuc != self.ref[m[0]]:
+                mutDict[m[0] + 1] = nuc
+            else:
+                del mutDict[m[0] + 1]
+
+
+    def write_genome(self, tree, output_path, output_file):
+        # open a file a create a container
+        genomefile = open(output_path + output_file + ".txt", "w")
+        mutDict = {}
+        # call the recursive function
+        self.writeGenomeShort(node=tree, file=genomefile, mutDict=mutDict)
+        genomefile.close()
+
+
 
 class GenomeTree_simpler:
     def __init__(self, nCat, ref, mutMatrix, categories, categoryRates, hyperMutRates, hyperCategories, file, verbose):
@@ -782,6 +821,10 @@ class GenomeTree_simpler:
         const = Constants()
         self.alleles = const.alleles
         self.allelesList = const.allelesList
+
+        self.muts = []
+        for c in range(nCat):
+            self.muts.append([[], [], [], []])
 
 
     def prepare_genome(self):
@@ -1099,6 +1142,32 @@ class GenomeTree_simpler:
         for c in childNode.children:
             self.mutateBranchETE(c, childMutations, childTotAlleles, rate, extrasChild, createNewick)
 
+
+
+    def writeGenomeShort(self, node, file):
+        # function to write a succint output iteratively
+        if node.is_leaf():
+            file.write(">" + node.name + "\n")
+            mutDict = {}
+            for c in range(self.nCat):
+                for i in range(4):
+                    for m in node.mutations[c][i]:
+                        mutDict[self.positions[c][i][m[0]][0] + 1] = self.allelesList[m[1]]
+            mutList = list(mutDict.keys())
+            mutList.sort()
+            for m in mutList:
+                file.write(str(m) + " " + mutDict[m] + "\n")
+        for c in node.children:
+            self.writeGenomeShort(c, file)
+
+
+
+    def write_genome(self, tree, output_path, output_file):
+        # open a file
+        genomefile = open(output_path + output_file + ".txt", "w")
+        # call the recursive function
+        self.writeGenomeShort(node=tree, file=genomefile)
+        genomefile.close()
 
 
 # node representing an element of the genome hierarchy, summarizing the total rate of the nodes below it,

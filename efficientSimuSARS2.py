@@ -113,8 +113,6 @@ file.write("pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo\n")
 # THAT IS, DEFINE A tree STRUCTURE, WITH TERMINAL NODES BEING GENOME LOCI AND WITH INTERNAL NODES BING MERGING GROUPS OF LOCI CONTAINING INFORMATION ABOUT THEIR CUMULATIVE RATES.
 # THIS WAY UPDATING A MUTATION EVENT REQUIRES COST LOGARITHMIC IN GENOME SIZE EVEN IF EVERY SITE HAS A DIFFERENT RATE. 
 if hierarchy:
-
-	#	codonRates= np.zeros(nCodons,9)
 	#CODONS: maybe don't create all the matrices from the start (might have too large an memory and time preparation cost).
 	#instead, initialize only the rates from the reference allele (only 9 rates are needed), and store them in a dictionary at level 0 terminal nodes, and when new codons at a position 
 	#are reached, extend the dictionary and calculate these new rates. Most positions will have only a few codons explored.
@@ -138,11 +136,9 @@ if hierarchy:
 	# normalize all rates
 	genome_tree.normalize_rates(scale=sim_run.args.scale)
 
+	time2 = time.time() - start
+	print("Total time after preparing for simulations: " + str(time2))
 
-
-
-
-			
 	# NOW DO THE ACTUAL SIMULATIONS. DEFINE TEMPORARY STRUCTURE ON TOP OF THE CONSTANT REFERENCE GENOME TREE.
 	# define a multi-layered tree; we start the simulations with a genome tree.
 	# as we move down the phylogenetic tree, new layers are added below the starting tree.
@@ -150,12 +146,8 @@ if hierarchy:
 	# while traversing the tree, as we move up gain from a node back to its parent
 	# (so that we can move to siblings etc), the nodes in layers below the current one are simply "forgotten"
 	# (in C they could be de-allocated, but the task here is left to python automation).
-	
+	genome_tree.mutateBranchETEhierarchy(t, genome_tree.genomeRoot, 1, sim_run.args.createNewick)
 
-		
-	
-
-	
 
 
 
@@ -171,7 +163,8 @@ else:
 		categoryRates=sim_run.args.categoryRates,
 		hyperMutRates=sim_run.args.hyperMutRates,
 		hyperCategories=hyperCategories,
-		file=file)
+		file=file,
+		verbose=sim_run.args.verbose)
 
 	# prepare the associated lists and mutation rate matrices
 	genome_tree.prepare_genome()
@@ -179,88 +172,26 @@ else:
 	# normalize the mutation rates
 	genome_tree.normalize_rates(scale=sim_run.args.scale)
 
+	time2 = time.time() - start
+	print("Total time after preparing for simulations: " + str(time2))
 
+	# Run sequence evolution simulation along tree
+	genome_tree.mutateBranchETE(t, genome_tree.muts, genome_tree.totAlleles, genome_tree.totMut, genome_tree.extras,
+								sim_run.args.createNewick)
 
 
 
 
 time2 = time.time() - start
-print("Total time after preparing for simulations: "+str(time2))
+print("Total time after simulating sequence evolution along tree with Gillespie approach: " + str(time2))
 
+# depending on the type of genome_tree, this automatically uses the correct version
+genome_tree.write_genome(tree=t, output_path=args.path, output_file=args.outputFile)
 
-
-
-#Run sequence evolution simulation along tree
-if hierarchy:
-	genome_tree.mutateBranchETEhierarchy(t,genome_tree.genomeRoot,1, createNewick=sim_run.args.createNewick)
-else:
-	muts=[]
-	for c in range(sim_run.nCat):
-		muts.append([[],[],[],[]])
-	genome_tree.mutateBranchETE(t,muts,genome_tree.totAlleles,totMut,genome_tree.extras, createNewick=sim_run.args.createNewick)
-time2 = time.time() - start
-print("Total time after simulating sequence evolution along tree with Gillespie approach: "+str(time2))
-
-
-
-
-
-#Create a succint output
-file=open(pathSimu+outputFile+".txt","w")
-
-if hierarchy:
-	mutDict={}
-	#function to write a succint output iteratively
-	def writeGenomeShort(node,file,mutDict):
-		#update dictionary
-		for m in node.mutations:
-				nuc=allelesList[m[2]]
-				if nuc!=ref[m[0]]:
-					mutDict[m[0]+1]=nuc
-				else:
-					del mutDict[m[0]+1]
-		#print leaf entry to file
-		if node.is_leaf():
-			file.write(">"+node.name+"\n")
-			mutList=list(mutDict.keys())
-			mutList.sort()
-			for m in mutList:
-				file.write(str(m)+" "+mutDict[m]+"\n")
-		#pass dictionary to children
-		else:
-			for c in node.children:
-				writeGenomeShort(c,file,mutDict)
-		#de-update the dictionary so it can be used by siblings etc. 
-		for n in range(len(node.mutations)):
-			m=node.mutations[len(node.mutations)-(n+1)]
-			nuc=allelesList[m[1]]
-			if nuc!=ref[m[0]]:
-				mutDict[m[0]+1]=nuc
-			else:
-				del mutDict[m[0]+1]
-	writeGenomeShort(t,file,mutDict)
-else:
-	#function to write a succint output iteratively
-	def writeGenomeShort(node,file):
-		if node.is_leaf():
-			file.write(">"+node.name+"\n")
-			mutDict={}
-			for c in range(sim_run.nCat):
-				for i in range(4):
-					for m in node.mutations[c][i]:
-						mutDict[genome_tree.positions[c][i][m[0]][0]+1]=allelesList[m[1]]
-			mutList=list(mutDict.keys())
-			mutList.sort()
-			for m in mutList:
-				file.write(str(m)+" "+mutDict[m]+"\n")
-		for c in node.children:
-			writeGenomeShort(c,file)
-			
-	writeGenomeShort(t,file)
-	
-file.close()
 time3 = time.time() - start
-print("Total time after writing short file: "+str(time3))
+print("Total time after writing short file: " + str(time3))
+
+
 
 
 
