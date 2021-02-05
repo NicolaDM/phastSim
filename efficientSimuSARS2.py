@@ -81,7 +81,7 @@ mutMatrix = sim_run.init_substitution_rates()
 gammaRates = sim_run.init_gamma_rates()
 
 # set up hypermutation rates
-hyperCategories, hyperMutRates = sim_run.init_hypermutation_rates()
+hyperCategories = sim_run.init_hypermutation_rates()
 
 # set up codon substitution model
 if sim_run.args.codon:
@@ -91,8 +91,6 @@ if sim_run.args.codon:
 
 #SARS-CoV-2 genome annotation - not used yet but will be useful when simulating under a codon model.
 #geneEnds=[[266,13468],[13468,21555],[21563,25384],[25393,26220],[26245,26472],[26523,27191],[27202,27387],[27394,27759],[27894,28259],[28274,29533],[29558,29674]]
-
-
 
 
 # Loads a tree structure from a newick string in ETE2. The returned variable t is the root node for the tree.
@@ -118,46 +116,16 @@ if hierarchy:
 		mutMatrixRepeats = np.repeat(mutMatrix[np.newaxis,...], len(ref), axis=0)
 		nTerminalNodes=len(ref)
 	else:
-		#useful for translating codons
-		from Bio.Data import CodonTable
-		table = CodonTable.ambiguous_dna_by_id[1]
-		from Bio.Seq import _translate_str
+
 		
-		nTerminalNodes=nCodons
+		nTerminalNodes = sim_run.nCodons
 		#pre-calculating relationships between representations of codons as int and as triplets.
-		codonIndeces=[]
-		codonIndeces2=np.zeros((4,4,4),dtype=int)
-		codonAlleles={}
-		codI=0
-		codonAllelesList=[]
-		translationList=[]
-		for i1 in range(4):
-			for i2 in range(4):
-				for i3 in range(4):
-					codonIndeces.append((i1,i2,i3))
-					codonIndeces2[i1,i2,i3]=codI
-					codonAlleles[allelesList[i1]+allelesList[i2]+allelesList[i3]]=codI
-					codonAllelesList.append(allelesList[i1]+allelesList[i2]+allelesList[i3])
-					translationList.append(_translate_str(allelesList[i1]+allelesList[i2]+allelesList[i3], table))
-					codI+=1
+		translationList, codonIndices, codonIndices2, codonAlleles, codonAllelesList = phastSim.codon_translation_list(allelesList)
+
 		#Creating quick look-up table that tells you if a mutation is synonymous or not
-		isNonsynom=np.zeros((64,3,3),dtype=bool)
-		isIntoStop=np.zeros((64,3,3),dtype=bool)
-		for i1 in range(64):
-			indeces=codonIndeces[i1]
-			aa=translationList[i1]
-			indeces2=list(indeces)
-			for i2 in range(3):
-				for i3 in range(3):
-					indeces2[i2]=((indeces[i2]+i3+1)%4)
-					cod2=codonIndeces2[indeces2[0],indeces2[1],indeces2[2]]
-					if aa!=translationList[cod2]:
-						isNonsynom[i1,i2,i3]=True
-					if translationList[cod2]=="*" and aa!="*" :
-						isIntoStop[i1,i2,i3]=True
-						#print(codonAllelesList[i1]+" "+codonAllelesList[cod2]+" into stop.")
-				indeces2[i2]=indeces[i2]
-					
+		isNonsynom, isIntoStop = phastSim.codon_lookup_table(translationList, codonIndices, codonIndices2)
+
+
 	#	codonRates= np.zeros(nCodons,9)
 	#CODONS: maybe don't create all the matrices from the start (might have too large an memory and time preparation cost).
 	#instead, initialize only the rates from the reference allele (only 9 rates are needed), and store them in a dictionary at level 0 terminal nodes, and when new codons at a position 
@@ -190,7 +158,7 @@ if hierarchy:
 			node.refNode=node
 			#the current allele at this terminal node. It starts as the reference allele at the considered position.
 			if codon:
-				if (pos<nTerminalNodes-1) and (ref[pos*3:(pos+1)*3] in stopCodons):
+				if (pos<nTerminalNodes-1) and (ref[pos*3:(pos+1)*3] in sim_run.const.stopCodons):
 					print("Warning: stop codon in the middle of the reference "+str(pos*3+1)+" "+ref[pos*3:(pos+1)*3]+". Continuing simulations but setting omega=0 for this position.")
 					omegas[pos]=0.0
 				#print(ref[pos*3:(pos+1)*3])
@@ -200,7 +168,7 @@ if hierarchy:
 				node.rates={}
 				node.hyper={}
 				node.rates[node.allele]=np.zeros(10)
-				indeces=codonIndeces[node.allele]
+				indeces=codonIndices[node.allele]
 				node.rate=0.0
 				for i2 in range(3):
 					pos2=pos*3+i2
@@ -339,19 +307,19 @@ if hierarchy:
 			a=parentGenomeNode.allele
 			if codon:
 				j=sampleMutationCodon(node.rates[a],rand)
-				indeces=codonIndeces[a]
+				indeces=codonIndices[a]
 				i2=int(j/3)
 				i3=j%3
 				newIndeces=list(indeces)
 				newIndeces[i2]=(newIndeces[i2]+i3+1)%4
-				parentGenomeNode.allele=codonIndeces2[newIndeces[0],newIndeces[1],newIndeces[2]]
+				parentGenomeNode.allele=codonIndices2[newIndeces[0],newIndeces[1],newIndeces[2]]
 				mutEvent=[node.genomePos[0]*3+i2,indeces[i2],newIndeces[i2]]
 				if verbose:
 					print("Mutation from "+str(a)+" "+codonAllelesList[a]+" to "+str(parentGenomeNode.allele)+" "+codonAllelesList[parentGenomeNode.allele]+" , position "+str(mutEvent[0])+" category rate "+str(gammaRates[mutEvent[0]])+" hyperCat "+str(hyperCategories[mutEvent[0]])+" omega "+str(omegas[node.genomePos[0]])+" old rate "+str(node.rates[a][9])+" old rates:")
 					print(node.rates[a])
 				if not( parentGenomeNode.allele in node.rates ):
 					node.rates[parentGenomeNode.allele]=np.zeros(10)
-					indeces=codonIndeces[parentGenomeNode.allele]
+					indeces=codonIndices[parentGenomeNode.allele]
 					parentGenomeNode.rate=0.0
 					for i2 in range(3):
 						pos2=node.genomePos[0]*3+i2
@@ -477,20 +445,20 @@ else:
 	#List of dictionaries that let you know at wich position (starting from 0) is the 1st A of the genome, the second A of the genome, etc (well, actually the 0th, the 1st, etc..).
 	#here I could use arrays instead of dictionaries, it might be more efficient.
 	positions=[]
-	for c in range(nCat):
+	for c in range(sim_run.nCat):
 		positions.append([[],[],[],[]])
 	#Total mutation rates cumulatively across the genome
-	totMutMatrix=np.zeros((nCat,4,4),dtype=float)
+	totMutMatrix=np.zeros((sim_run.nCat,4,4),dtype=float)
 	#hyper rates of currently affected sites
 	extras=[]
 	#total mutation rate
 	totMut=0.0
 	#tot number of A's, C's, G's and T's in the reference genome
 	#Number of alleles in each category across the genome.
-	totAlleles=np.zeros((nCat,4))
+	totAlleles=np.zeros((sim_run.nCat,4))
 	for pos in range(len(ref)):
 		a=alleles[ref[pos]]
-		cat=categories[pos]
+		cat=sim_run.categories[pos]
 		hyp=hyperCategories[pos]
 		file.write(str(pos+1)+"\t"+str(cat)+"\t"+str(hyp)+"\t")
 		#now sample which alleles are affected by hypermutation and store info in positions and extra vectors
@@ -510,7 +478,7 @@ else:
 			if j!=a:
 				totMutMatrix[cat][a][j]+=mutMatrix[a][j]*categoryRates[cat]
 				totMut+=mutMatrix[a][j]*categoryRates[cat]
-		totAlleles[categories[pos]][a]+=1
+		totAlleles[sim_run.categories[pos]][a]+=1
 	file.close()
 	
 	print("\n Number of each nucleotide in the genome:")
@@ -526,7 +494,7 @@ else:
 	for i in range(4):
 		for j in range(4):
 			mutMatrix[i][j]=mutMatrix[i][j]/norm
-			for c in range(nCat):
+			for c in range(sim_run.nCat):
 				if j!=i:
 					totMutMatrix[c][i][j]=totMutMatrix[c][i][j]/norm
 	for e in range(len(extras)):
@@ -552,7 +520,7 @@ else:
 		rate=parentRate
 		childTotAlleles=[]
 		childMutations=[]
-		for c in range(nCat):
+		for c in range(sim_run.nCat):
 			childTotAlleles.append(list(parentTotAlleles[c]))
 			childMutations.append([[],[],[],[]])
 			#Initialize child mutation list with parent one
@@ -580,7 +548,7 @@ else:
 			tot=0.0
 			found=False
 			hyperExtra=False
-			for c in range(nCat):
+			for c in range(sim_run.nCat):
 				for i in range(4):
 					for j in range(4):
 						if j!=i:
@@ -771,7 +739,7 @@ if hierarchy:
 	mutateBranchETEhierarchy(t,genomeRoot,1)
 else:
 	muts=[]
-	for c in range(nCat):
+	for c in range(sim_run.nCat):
 		muts.append([[],[],[],[]])
 	mutateBranchETE(t,muts,totAlleles,totMut,extras)
 time2 = time.time() - start
@@ -821,7 +789,7 @@ else:
 		if node.is_leaf():
 			file.write(">"+node.name+"\n")
 			mutDict={}
-			for c in range(nCat):
+			for c in range(sim_run.nCat):
 				for i in range(4):
 					for m in node.mutations[c][i]:
 						mutDict[positions[c][i][m[0]][0]+1]=allelesList[m[1]]
@@ -881,12 +849,12 @@ if createFasta or createPhylip:
 		#generate the genome sequence of a sample using node mutations and the reference
 		#useful, for example, for generating a fasta file.
 		def genomeSeq(mutations):
-			for c in range(nCat):
+			for c in range(sim_run.nCat):
 				for i in range(4):
 					for m in mutations[c][i]:
 						refList[positions[c][i][m[0]][0]]=allelesList[m[1]]
 			newGenome=''.join(refList)
-			for c in range(nCat):
+			for c in range(sim_run.nCat):
 				for i in range(4):
 					for m in mutations[c][i]:
 						pos=positions[c][i][m[0]][0]

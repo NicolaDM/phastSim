@@ -11,6 +11,7 @@ class Constants:
         self.alleles = {"A": 0, "C": 1, "G": 2, "T": 3, "a": 0, "c": 1, "g": 2, "t": 3, "u": 3, "U": 3}
         self.allelesList = ["A", "C", "G", "T"]
         self.nAlleles = 4
+        self.stopCodons = ["TAA", "TGA", "TAG"]
 
 
 def setup_argument_parser():
@@ -277,6 +278,7 @@ class phastSim_run:
 
         else:
             nCat = len(categoryProbs)
+            self.nCat = nCat
             nRates = len(categoryRates)
             sum_probs = np.sum(categoryProbs)
             for i in range(nCat):
@@ -295,6 +297,7 @@ class phastSim_run:
             # sample category for each site of the genome
             gammaRates = np.zeros(self.ref_len)
             categories = np.random.choice(nCat, size=self.ref_len, p=categoryProbs)
+            self.categories = categories
             for i in range(self.ref_len):
                 gammaRates[i] = categoryRates[categories[i]]
 
@@ -338,8 +341,7 @@ class phastSim_run:
         print(newHyperMutProbs)
         print("Hypermutation class rates:")
         print(hyperMutRates)
-
-        return hyperCategories, hyperMutRates
+        return hyperCategories
 
 
     def init_codon_substitution_model(self):
@@ -353,6 +355,7 @@ class phastSim_run:
         omegaCategoryRates = self.args.omegaCategoryRates
 
         nCodons = int(self.ref_len / 3)
+        self.nCodons = nCodons
         print("Using a codon model")
 
         if omegaAlpha >= 0.000000001:
@@ -402,3 +405,50 @@ def check_start_stop_codons(ref, gammaRates, omegas):
 
     return gammaRates, omegas
 
+
+def codon_translation_list(allelesList):
+    # useful for translating codons
+    from Bio.Data import CodonTable
+    table = CodonTable.ambiguous_dna_by_id[1]
+    from Bio.Seq import _translate_str
+
+    # pre-calculating relationships between representations of codons as int and as triplets.
+    codonIndices = []
+    codonIndices2 = np.zeros((4, 4, 4), dtype=int)
+    codonAlleles = {}
+    codI = 0
+    codonAllelesList = []
+    translationList = []
+    for i1 in range(4):
+        for i2 in range(4):
+            for i3 in range(4):
+                codonIndices.append((i1, i2, i3))
+                codonIndices2[i1, i2, i3] = codI
+                codonAlleles[allelesList[i1] + allelesList[i2] + allelesList[i3]] = codI
+                codonAllelesList.append(allelesList[i1] + allelesList[i2] + allelesList[i3])
+                translationList.append(_translate_str(allelesList[i1] + allelesList[i2] + allelesList[i3], table))
+                codI += 1
+
+    return translationList, codonIndices, codonIndices2, codonAlleles, codonAllelesList
+
+
+def codon_lookup_table(translationList, codonIndices, codonIndices2):
+    # Creating quick look-up table that tells you if a mutation is synonymous or not
+    isNonsynom = np.zeros((64, 3, 3), dtype=bool)
+    isIntoStop = np.zeros((64, 3, 3), dtype=bool)
+    for i1 in range(64):
+        indeces = codonIndices[i1]
+        aa = translationList[i1]
+        indeces2 = list(indeces)
+        for i2 in range(3):
+            for i3 in range(3):
+                indeces2[i2] = ((indeces[i2] + i3 + 1) % 4)
+                cod2 = codonIndices2[indeces2[0], indeces2[1], indeces2[2]]
+                if aa != translationList[cod2]:
+                    isNonsynom[i1, i2, i3] = True
+                if translationList[cod2] == "*" and aa != "*":
+                    isIntoStop[i1, i2, i3] = True
+                # print(codonAllelesList[i1]+" "+codonAllelesList[cod2]+" into stop.")
+            indeces2[i2] = indeces[i2]
+
+    return isNonsynom, isIntoStop
