@@ -391,6 +391,178 @@ class phastSim_run:
 
 
 
+class GenomeTree:
+    def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, file):
+        self.codon = codon
+        self.ref = ref
+        self.gammaRates = gammaRates
+        self.omegas = omegas
+        self.mutMatrix = mutMatrix
+
+        self.hyperCategories = hyperCategories
+        self.hyperMutRates = hyperMutRates
+        self.file = file
+
+        const = Constants()
+        self.stopCodons = const.stopCodons
+        self.alleles = const.alleles
+        self.allelesList = const.allelesList
+        self.nAlleles = const.nAlleles
+
+        if not codon:
+            self.nTerminalNodes = len(ref)
+            # we use numpy to efficiently create many copies of the initial mutation matrix
+            self.mutMatrixRepeats = np.repeat(mutMatrix[np.newaxis, ...], len(ref), axis=0)
+
+        else:
+            self.nTerminalNodes = nCodons
+            # pre-calculating relationships between representations of codons as int and as triplets.
+            translationList, codonIndices, codonIndices2, codonAlleles, codonAllelesList = codon_translation_list(
+                const.allelesList)
+
+            self.codonIndices = codonIndices
+            self.codonIndices2 = codonIndices2
+            self.codonAlleles = codonAlleles
+            self.codonAllelesList = codonAllelesList
+
+            # Creating quick look-up table that tells you if a mutation is synonymous or not
+            isNonsynom, isIntoStop = codon_lookup_table(translationList, codonIndices, codonIndices2)
+            self.isNonsynom = isNonsynom
+            self.isIntoStop = isIntoStop
+
+        # root of the starting (level 0) genome tree
+        self.genomeRoot = genomeNode()
+        # position of the genome at which the corresponding node refers to. For the root, it's the whole genome.
+        self.genomeRoot.genomePos = [0, self.nTerminalNodes - 1]
+
+
+    def populateGenomeTree(self, node):
+        if node.genomePos[0] == node.genomePos[1]:
+            # these are terminal nodes. Only these nodes need information regarding specific alleles and rates.
+            pos = node.genomePos[1]
+            node.isTerminal = True
+            # the corresponding node in the level 0 tree; in this case, it's itself.
+            # Only terminal nodes in the level 0 tree need to contain info regarding all mutation rates.
+            node.refNode = node
+            # the current allele at this terminal node. It starts as the reference allele at the considered position.
+            if self.codon:
+                if (pos < self.nTerminalNodes - 1) and (self.ref[pos * 3:(pos + 1) * 3] in self.stopCodons):
+                    print(f"Warning: stop codon in the middle of the reference {pos * 3 + 1}"
+                          f" {self.ref[pos * 3:(pos + 1) * 3]}."
+                          f"Continuing simulations but setting omega=0 for this position.")
+                    self.omegas[pos] = 0.0
+                # print(ref[pos*3:(pos+1)*3])
+                node.allele = self.codonAlleles[self.ref[pos * 3:(pos + 1) * 3]]
+                # print(node.allele)
+                self.file.write(str(pos * 3 + 1) + "-" + str(pos * 3 + 3) + "\t" + str(self.omegas[pos]) + "\t")
+                node.rates = {}
+                node.hyper = {}
+                node.rates[node.allele] = np.zeros(10)
+                indeces = self.codonIndices[node.allele]
+                node.rate = 0.0
+                for i2 in range(3):
+                    pos2 = pos * 3 + i2
+                    self.file.write(str(self.gammaRates[pos2]) + "\t" + str(self.hyperCategories[pos2]) + "\t")
+                    nuc1 = indeces[i2]
+                    for i3 in range(3):
+                        nuc2 = (nuc1 + i3 + 1) % 4
+                        if self.isNonsynom[node.allele, i2, i3]:
+                            if self.isIntoStop[node.allele, i2, i3]:
+                                node.rates[node.allele][i2 * 3 + i3] = 0.0
+                            else:
+                                node.rates[node.allele][i2 * 3 + i3] = self.omegas[pos] * self.mutMatrix[nuc1][nuc2] * \
+                                                                       self.gammaRates[pos2]
+                        else:
+                            node.rates[node.allele][i2 * 3 + i3] = self.mutMatrix[nuc1][nuc2] * self.gammaRates[pos2]
+                    if self.hyperCategories[pos2] > 0:
+                        # site with hypermutation. Sample a random allele i to hypermutate,
+                        # and a random destination allele j;
+                        # the mutation rate from i to j at the given position is then enhanced.
+                        i = np.random.choice(self.nAlleles)
+                        j = np.random.choice(self.nAlleles - 1)
+                        node.hyper[i2] = (i, j)
+                        if i == nuc1:
+                            node.rates[node.allele][i2 * 3 + j] *= self.hyperMutRates[self.hyperCategories[pos2] - 1]
+                        self.file.write(self.allelesList[i] + "\t" + self.allelesList[(i + j + 1) % 4] + "\t")
+                    else:
+                        self.file.write(".\t" + ".\t")
+                    for i3 in range(3):
+                        node.rate += node.rates[node.allele][i2 * 3 + i3]
+                    node.rates[node.allele][9] = node.rate
+                self.file.write("\n")
+
+            else:
+                node.allele = self.alleles[self.ref[pos]]
+                # evolutionary categories
+                nodeHyper = self.hyperCategories[pos]
+                self.file.write(str(pos + 1) + "\t" + str(self.gammaRates[pos]) + "\t" + str(nodeHyper) + "\t")
+                # the mutation rates for the considered site
+                node.rates = self.mutMatrixRepeats[pos]
+                node.rates *= self.gammaRates[pos]
+                # node.rates=np.copy(mutMatrix)*categoryRates[node.category]
+                # NICOLA: THIS COULD MAYBE BE MADE MORE EFFICIENT.
+                # FOR EXAMPLE, ONE COULD INITIALIZE RATES ONLY WHEN SAMPLING AT A LEAF,
+                # AND OTHERWISE INITIALIZE ONLY THE TOTAL RATE.
+                # ALSO, INSTATED OF COPYING AND STORING MULTIPLE MUTATION MATRICES, ONE COULD LINK TO THE SAME ONE
+                # FOR SITES WITH THE SAME RATES.
+                # now sample which alleles are affected by hypermutation and store info in positions and extra vectors
+                if nodeHyper > 0:
+                    # site with hypermutation. Sample a random allele i to hypermutate,
+                    # and a random destination allele j;
+                    # the mutation rate from i to j at the given position is then enhanced.
+                    i = np.random.choice(self.nAlleles)
+                    j = np.random.choice(self.nAlleles - 1)
+                    j = (i + j + 1) % self.nAlleles
+                    node.rates[i][i] -= node.rates[i][j] * (self.hyperMutRates[nodeHyper - 1] - 1.0)
+                    node.rates[i][j] *= self.hyperMutRates[nodeHyper - 1]
+                    self.file.write(self.allelesList[i] + "\t" + self.allelesList[j] + "\n")
+                else:
+                    self.file.write(".\t" + ".\n")
+                # total mutation rate at the node
+                node.rate -= node.rates[node.allele][node.allele]
+
+        else:
+            # split the considered part of the genome in two, assign each half to both children,
+            # then call the populate function iteratively on the children.
+            middle = node.genomePos[0] + int((node.genomePos[1] - node.genomePos[0]) / 2)
+            firstHalf = [node.genomePos[0], middle]
+            secondHalf = [middle + 1, node.genomePos[1]]
+            firstChild = genomeNode()  # upNode=node
+            firstChild.genomePos = firstHalf
+            secondChild = genomeNode()  # upNode=node
+            secondChild.genomePos = secondHalf
+            node.belowNodes = [firstChild, secondChild]
+            self.populateGenomeTree(node=firstChild)
+            self.populateGenomeTree(node=secondChild)
+            node.rate = firstChild.rate + secondChild.rate
+
+
+
+
+
+
+
+
+
+# node representing an element of the genome hierarchy, summarizing the total rate of the nodes below it,
+# that is, the total rate of part of the genome.
+class genomeNode:
+    def __init__(self, level=0):  # , upNode=None
+        # total mutation rate at this genome node
+        self.rate = 0.0
+        # the parent node in the genome tree in the same layer.
+        # self.upNode = upNode
+        # terminal nodes correspond to individual sites of the genome
+        # (or individual evolutionary units for whatever they are).
+        self.isTerminal = False
+        # level of the genome tree hierarchy. higher levels are below, and are not linked by nodes in layers above.
+        self.level = level
+
+
+
+
+
+
 def check_start_stop_codons(ref, gammaRates, omegas):
     # if first codon is a start codon, or last is a stop codon, don't allow them to evolve
     # if ref[0:3]=="ATG" or ref[0:3]=="atg" or ref[0:3]=="AUG" or ref[0:3]=="aug":
