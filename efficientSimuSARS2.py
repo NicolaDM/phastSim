@@ -1,10 +1,10 @@
-import sys
-import os
-#import math
+# import sys
+# import os
+# import math
 import numpy as np
-import os.path
-#from os import path
-import argparse
+# import os.path
+# from os import path
+# import argparse
 from ete3 import Tree
 import time
 import phastSim
@@ -129,132 +129,29 @@ if hierarchy:
 		mutMatrix=mutMatrix,
 		hyperCategories=hyperCategories,
 		hyperMutRates=sim_run.args.hyperMutRates,
-		file=file)
+		file=file,
+		verbose=sim_run.args.verbose)
 
 	# populate the GenomeTree
 	genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
 
 	# normalize all rates
-	norm = genome_tree.normalize_rates(scale=sim_run.args.scale)
+	genome_tree.normalize_rates(scale=sim_run.args.scale)
 
 
-	
-	alRange=range(nAlleles)
-	range9=range(9)
-	
-	#sample a new allele to mutate to, given the mutation rates at a current node
-	#NICOLA: THIS MIGHT BE MADE FASTER, ESPECIALLY WITH LARGE STATE SPACES (E.G. CODON MODELS). 
-	#INSTEAD OF ITERATING OVER ALL STATES, IN FACT, BELOW ONE COULD USE A DIVIDE AND CONQUER APPROACH OVER THE STATE SPACE, FOR EXAMPLE DEFINING ANOTHER CONSTANT TREE STRUCTURE OVER ALLELE SPACE.
-	def sampleMutationCodon(rates,rand):
-		for j in range9:
-				if rand<rates[j]:
-					return j
-				else:
-					rand-=rates[j]
-		print("You should not have got here - there was a bug somewhere or some unlucky sampling in the machine error area")
-		exit()
-	def sampleMutation(allele,rates,rand):
-		for j in alRange:
-			if j!=allele:
-				if rand<rates[j]:
-					return j
-				else:
-					rand-=rates[j]
-		print("You should not have got here - there was a bug somewhere or some unlucky sampling in the machine error area")
-		exit()
+
+
+
 			
-	#NOW DO THE ACTUAL SIMULATIONS. DEFINE TEMPORARY STRUCTURE ON TOP OF THE CONSTANT REFERENCE GENOME TREE.
-	#define a multi-layered tree; we start the simulations with a genome tree.
-	#as we move down the phylogenetic tree, new layers are added below the starting tree. Nodes to layers below link to nodes above, or to nodes on the same layer, but never to nodes in the layer below.
-	#while traversing the tree, as we move up gain from a node back to its parent (so that we can move to siblings etc), the nodes in layers below the current one are simply "forgotten" (in C they could be de-allocated, but the task here is left to python automation).
+	# NOW DO THE ACTUAL SIMULATIONS. DEFINE TEMPORARY STRUCTURE ON TOP OF THE CONSTANT REFERENCE GENOME TREE.
+	# define a multi-layered tree; we start the simulations with a genome tree.
+	# as we move down the phylogenetic tree, new layers are added below the starting tree.
+	# Nodes to layers below link to nodes above, or to nodes on the same layer, but never to nodes in the layer below.
+	# while traversing the tree, as we move up gain from a node back to its parent
+	# (so that we can move to siblings etc), the nodes in layers below the current one are simply "forgotten"
+	# (in C they could be de-allocated, but the task here is left to python automation).
 	
-	#find position to mutate along the genome, and update temporary genome tree structure as you go
-	def findPos(rand,parentGenomeNode,level):
-		if parentGenomeNode.isTerminal:
-			#reached a terminal node, now sample the mutation event at the position and update all rates
-			node=parentGenomeNode.refNode
-			a=parentGenomeNode.allele
-			if codon:
-				j=sampleMutationCodon(node.rates[a],rand)
-				indeces=genome_tree.codonIndices[a]
-				i2=int(j/3)
-				i3=j%3
-				newIndeces=list(indeces)
-				newIndeces[i2]=(newIndeces[i2]+i3+1)%4
-				parentGenomeNode.allele=genome_tree.codonIndices2[newIndeces[0],newIndeces[1],newIndeces[2]]
-				mutEvent=[node.genomePos[0]*3+i2,indeces[i2],newIndeces[i2]]
-				if verbose:
-					print("Mutation from "+str(a)+" "+genome_tree.codonAllelesList[a]+" to "+str(parentGenomeNode.allele)+" "+genome_tree.codonAllelesList[parentGenomeNode.allele]+" , position "+str(mutEvent[0])+" category rate "+str(gammaRates[mutEvent[0]])+" hyperCat "+str(hyperCategories[mutEvent[0]])+" omega "+str(omegas[node.genomePos[0]])+" old rate "+str(node.rates[a][9])+" old rates:")
-					print(node.rates[a])
-				if not( parentGenomeNode.allele in node.rates ):
-					node.rates[parentGenomeNode.allele]=np.zeros(10)
-					indeces=genome_tree.codonIndices[parentGenomeNode.allele]
-					parentGenomeNode.rate=0.0
-					for i2 in range(3):
-						pos2=node.genomePos[0]*3+i2
-						nuc1=indeces[i2]
-						for i3 in range(3):
-							nuc2=(nuc1+i3+1)%4
-							if genome_tree.isNonsynom[parentGenomeNode.allele,i2,i3]:
-								if genome_tree.isIntoStop[parentGenomeNode.allele,i2,i3]:
-									node.rates[parentGenomeNode.allele][i2*3+i3]=0.0
-								else:
-									node.rates[parentGenomeNode.allele][i2*3+i3]=omegas[node.genomePos[0]]*mutMatrix[nuc1][nuc2]*gammaRates[pos2]/norm
-							else:
-								node.rates[parentGenomeNode.allele][i2*3+i3]=mutMatrix[nuc1][nuc2]*gammaRates[pos2]/norm
-						if hyperCategories[pos2]>0:
-							if node.hyper[i2][0]==nuc1:
-								node.rates[parentGenomeNode.allele][i2*3+node.hyper[i2][1]]*=hyperMutRates[hyperCategories[pos2]-1]
-						for i3 in range(3):
-							node.rates[parentGenomeNode.allele][9]+=node.rates[parentGenomeNode.allele][i2*3+i3]
-				parentGenomeNode.rate=node.rates[parentGenomeNode.allele][9]
-				if verbose:
-					print(" new rate "+str(parentGenomeNode.rate)+" all rates:")
-					print(node.rates[parentGenomeNode.allele])		
-			else:
-				j=sampleMutation(a,node.rates[a],rand)
-				mutEvent=[node.genomePos[0],a,j]
-				if verbose:
-					print("Mutation from "+str(a)+" to "+str(j)+" , position "+str(node.genomePos[0])+" category rate "+str(gammaRates[node.genomePos[0]])+" hyperCat "+str(hyperCategories[node.genomePos[0]])+" old rate "+str(parentGenomeNode.rate)+" old rates:")
-					print(node.rates)
-				parentGenomeNode.rate=-node.rates[j,j]
-				if verbose:
-					print(" new rate "+str(parentGenomeNode.rate)+" all rates:")
-					print(node.rates)
-				parentGenomeNode.allele=j
-			return mutEvent
 
-		else:
-			#still at an internal genome node.
-			#choose which of the two children genome nodes to move into
-			if rand>=parentGenomeNode.belowNodes[0].rate:
-				rand-=parentGenomeNode.belowNodes[0].rate
-				parentGenomeNode.rate=parentGenomeNode.belowNodes[0].rate
-				child=parentGenomeNode.belowNodes[1]
-				childI=1
-			else:
-				child=parentGenomeNode.belowNodes[0]
-				parentGenomeNode.rate=parentGenomeNode.belowNodes[1].rate
-				childI=0
-			#if the child we are moving into is not on the same level, but is above, then create a new child at the same level.
-			#this is because the rate of the child will be inevitably changed by the mutation event, and we don't want to change the mutation rates for the parent phylogenetic node.
-			if child.level<level:
-				newChild=phastSim.genomeNode(level=level) #upNode=parentGenomeNode
-				parentGenomeNode.belowNodes[childI]=newChild
-				newChild.isTerminal=child.isTerminal
-				if child.isTerminal:
-					newChild.refNode=child.refNode
-					newChild.allele=child.allele
-				else:
-					newChild.belowNodes=list(child.belowNodes)
-				
-				mutEvent=findPos(rand,newChild,level)
-				parentGenomeNode.rate+=newChild.rate
-			else:
-				#in this case the child is already on the same level, so no need to create another one, just update its mutation rate.
-				mutEvent=findPos(rand,child,level)
-				parentGenomeNode.rate+=child.rate
-			return mutEvent
 		
 	
 	#Function to simulate evolution on one branch,using ETE tree structure and using the genome-wide hierarchy structure.
@@ -287,7 +184,7 @@ if hierarchy:
 			rand=np.random.random()*rate
 			if verbose:
 				print("Selecting new mutation event. Rate "+str(rate)+" random value "+str(rand))
-			mutEvent=findPos(rand,newGenomeNode,level)
+			mutEvent=genome_tree.findPos(rand,newGenomeNode,level)
 			childNode.mutations.append(mutEvent)
 			if createNewick:
 				childNode.mutAnnotation.append(allelesList[mutEvent[1]]+str(mutEvent[0]+1)+allelesList[mutEvent[2]])

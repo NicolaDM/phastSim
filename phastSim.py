@@ -392,7 +392,7 @@ class phastSim_run:
 
 
 class GenomeTree:
-    def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, file):
+    def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, file, verbose):
         self.codon = codon
         self.ref = ref
         self.gammaRates = gammaRates
@@ -402,12 +402,16 @@ class GenomeTree:
         self.hyperCategories = hyperCategories
         self.hyperMutRates = hyperMutRates
         self.file = file
+        self.verbose = verbose
 
         const = Constants()
         self.stopCodons = const.stopCodons
         self.alleles = const.alleles
         self.allelesList = const.allelesList
         self.nAlleles = const.nAlleles
+
+        self.alRange = range(const.nAlleles)
+        self.range9 = range(9)
 
         if not codon:
             self.nTerminalNodes = len(ref)
@@ -541,6 +545,7 @@ class GenomeTree:
         # I am assuming the branch lengths are in number of substitutions per nucleotide,
         # even though we might be simulating a codon model.
         norm = self.genomeRoot.rate / len(self.ref)
+        self.norm = norm
 
         print("\n Total cumulative mutation rate per site before normalization: " + str(norm))
         # We rescale by the input normalization factor, this is the same as rescaling all
@@ -570,10 +575,139 @@ class GenomeTree:
 
         # normalize the rates
         normalize(node=self.genomeRoot, norm=norm)
-        # and return the norm factor
-        return norm
 
 
+
+    # sample a new allele to mutate to, given the mutation rates at a current node
+    # NICOLA: THIS MIGHT BE MADE FASTER, ESPECIALLY WITH LARGE STATE SPACES (E.G. CODON MODELS).
+    # INSTEAD OF ITERATING OVER ALL STATES, IN FACT, BELOW ONE COULD USE A DIVIDE AND CONQUER APPROACH
+    # OVER THE STATE SPACE, FOR EXAMPLE DEFINING ANOTHER CONSTANT TREE STRUCTURE OVER ALLELE SPACE.
+    def sampleMutationCodon(self, rates, rand):
+        for j in self.range9:
+            if rand < rates[j]:
+                return j
+            else:
+                rand -= rates[j]
+        print(
+            "You should not have got here - there was a bug somewhere or some unlucky sampling in the machine error area")
+        exit()
+
+    def sampleMutation(self, allele, rates, rand):
+        for j in self.alRange:
+            if j != allele:
+                if rand < rates[j]:
+                    return j
+                else:
+                    rand -= rates[j]
+        print(
+            "You should not have got here - there was a bug somewhere or some unlucky sampling in the machine error area")
+        exit()
+
+
+
+    def findPos(self, rand, parentGenomeNode, level):
+        # find position to mutate along the genome, and update temporary genome tree structure as you go
+        if parentGenomeNode.isTerminal:
+            # reached a terminal node, now sample the mutation event at the position and update all rates
+            node = parentGenomeNode.refNode
+            a = parentGenomeNode.allele
+            if self.codon:
+                j = self.sampleMutationCodon(rates=node.rates[a], rand=rand)
+                indeces = self.codonIndices[a]
+                i2 = int(j / 3)
+                i3 = j % 3
+                newIndeces = list(indeces)
+                newIndeces[i2] = (newIndeces[i2] + i3 + 1) % 4
+                parentGenomeNode.allele = self.codonIndices2[newIndeces[0], newIndeces[1], newIndeces[2]]
+                mutEvent = [node.genomePos[0] * 3 + i2, indeces[i2], newIndeces[i2]]
+                if self.verbose:
+                    print(f"Mutation from {a} {self.codonAllelesList[a]} "
+                          f"to {parentGenomeNode.allele} {self.codonAllelesList[parentGenomeNode.allele]}"
+                          f" , position {mutEvent[0]} category rate {self.gammaRates[mutEvent[0]]}"
+                          f" hyperCat {self.hyperCategories[mutEvent[0]]}"
+                          f" omega {self.omegas[node.genomePos[0]]}"
+                          f" old rate {node.rates[a][9]} old rates:")
+                    print(node.rates[a])
+                if not (parentGenomeNode.allele in node.rates):
+                    node.rates[parentGenomeNode.allele] = np.zeros(10)
+                    indeces = self.codonIndices[parentGenomeNode.allele]
+                    parentGenomeNode.rate = 0.0
+                    for i2 in range(3):
+                        pos2 = node.genomePos[0] * 3 + i2
+                        nuc1 = indeces[i2]
+                        for i3 in range(3):
+                            nuc2 = (nuc1 + i3 + 1) % 4
+                            if self.isNonsynom[parentGenomeNode.allele, i2, i3]:
+                                if self.isIntoStop[parentGenomeNode.allele, i2, i3]:
+                                    node.rates[parentGenomeNode.allele][i2 * 3 + i3] = 0.0
+                                else:
+                                    node.rates[parentGenomeNode.allele][i2 * 3 + i3] = self.omegas[node.genomePos[0]] * \
+                                                                                       self.mutMatrix[nuc1][nuc2] * \
+                                                                                       self.gammaRates[pos2] / self.norm
+                            else:
+                                node.rates[parentGenomeNode.allele][i2 * 3 + i3] = self.mutMatrix[nuc1][nuc2] * \
+                                                                                   self.gammaRates[pos2] / self.norm
+                        if self.hyperCategories[pos2] > 0:
+                            if node.hyper[i2][0] == nuc1:
+                                node.rates[parentGenomeNode.allele][i2 * 3 + node.hyper[i2][1]] *= self.hyperMutRates[
+                                    self.hyperCategories[pos2] - 1]
+                        for i3 in range(3):
+                            node.rates[parentGenomeNode.allele][9] += node.rates[parentGenomeNode.allele][i2 * 3 + i3]
+                parentGenomeNode.rate = node.rates[parentGenomeNode.allele][9]
+                if self.verbose:
+                    print(f" new rate {parentGenomeNode.rate} all rates:")
+                    print(node.rates[parentGenomeNode.allele])
+            else:
+                j = self.sampleMutation(a, node.rates[a], rand)
+                mutEvent = [node.genomePos[0], a, j]
+                if self.verbose:
+                    print(f"Mutation from {a} to {j},"
+                          f" position {node.genomePos[0]}"
+                          f" category rate {self.gammaRates[node.genomePos[0]]}"
+                          f" hyperCat {self.hyperCategories[node.genomePos[0]]}"
+                          f" old rate {parentGenomeNode.rate} old rates:")
+                    print(node.rates)
+                parentGenomeNode.rate = -node.rates[j, j]
+                if self.verbose:
+                    print(" new rate " + str(parentGenomeNode.rate) + " all rates:")
+                    print(node.rates)
+                parentGenomeNode.allele = j
+            return mutEvent
+
+        else:
+            # still at an internal genome node.
+            # choose which of the two children genome nodes to move into
+            if rand >= parentGenomeNode.belowNodes[0].rate:
+                rand -= parentGenomeNode.belowNodes[0].rate
+                parentGenomeNode.rate = parentGenomeNode.belowNodes[0].rate
+                child = parentGenomeNode.belowNodes[1]
+                childI = 1
+            else:
+                child = parentGenomeNode.belowNodes[0]
+                parentGenomeNode.rate = parentGenomeNode.belowNodes[1].rate
+                childI = 0
+
+            # if the child we are moving into is not on the same level, but is above,
+            # then create a new child at the same level.
+            # this is because the rate of the child will be inevitably changed by the mutation event,
+            # and we don't want to change the mutation rates for the parent phylogenetic node.
+            if child.level < level:
+                newChild = genomeNode(level=level)  # upNode=parentGenomeNode
+                parentGenomeNode.belowNodes[childI] = newChild
+                newChild.isTerminal = child.isTerminal
+                if child.isTerminal:
+                    newChild.refNode = child.refNode
+                    newChild.allele = child.allele
+                else:
+                    newChild.belowNodes = list(child.belowNodes)
+
+                mutEvent = self.findPos(rand, newChild, level)
+                parentGenomeNode.rate += newChild.rate
+            else:
+                # in this case the child is already on the same level, so no need to create another one, just update its mutation rate.
+                mutEvent = self.findPos(rand, child, level)
+                parentGenomeNode.rate += child.rate
+            return mutEvent
 
 
 
@@ -591,8 +725,6 @@ class genomeNode:
         self.isTerminal = False
         # level of the genome tree hierarchy. higher levels are below, and are not linked by nodes in layers above.
         self.level = level
-
-
 
 
 
