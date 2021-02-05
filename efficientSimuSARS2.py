@@ -74,7 +74,8 @@ nAlleles = 4
 # initialise the root genome. Reads either from file or creates a genome in codon or nucleotide mode
 ref, refList = sim_run.init_rootGenome()
 
-
+# set up substitution rates
+mutMatrix = sim_run.init_substitution_rates()
 
 
 
@@ -83,25 +84,7 @@ ref, refList = sim_run.init_rootGenome()
 #SARS-CoV-2 genome annotation - not used yet but will be useful when simulating under a codon model.
 #geneEnds=[[266,13468],[13468,21555],[21563,25384],[25393,26220],[26245,26472],[26523,27191],[27202,27387],[27394,27759],[27894,28259],[28274,29533],[29558,29674]]
 
-#substitution rates
-if len(mutationRates)==12:
-	print("\n Assuming UNREST nucleotide mutation model.")
-	mutMatrix=np.zeros((4,4),dtype=float)
-	index=0
-	for i in range(4):
-		sum=0.0
-		for j in range(4):
-			if j!=i:
-				mutMatrix[i][j]=mutationRates[index]
-				sum+=mutationRates[index]
-				index+=1
-		mutMatrix[i][i]=-sum
-else:
-	print("\n Number of mutation rates "+str(len(mutationRates))+", model not implemented yet.")
-	print(mutationRates)
-	exit()
-print("\n Mutation rate matrix:")
-print(mutMatrix)
+
 
 
 if alpha>=0.000000001:

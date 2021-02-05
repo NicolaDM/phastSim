@@ -235,3 +235,29 @@ class phastSim_run:
         refList = np.random.choice(allelesList, size=int(rootGenomeLength), replace=True, p=rootGenomeFrequencies)
         ref = "".join(refList)
         return ref, refList
+
+
+    def init_substitution_rates(self):
+        # substitution rates
+        mutationRates = self.args.mutationRates
+        if len(mutationRates) == 12:
+            print("\n Assuming UNREST nucleotide mutation model.")
+            mutMatrix = np.zeros((4, 4), dtype=float)
+            index = 0
+            for i in range(4):
+                sum = 0.0
+                for j in range(4):
+                    if j != i:
+                        mutMatrix[i][j] = mutationRates[index]
+                        sum += mutationRates[index]
+                        index += 1
+                mutMatrix[i][i] = -sum
+        else:
+            print("\n Number of mutation rates " + str(len(mutationRates)) + ", model not implemented yet.")
+            print(mutationRates)
+            exit()
+        print("\n Mutation rate matrix:")
+        print(mutMatrix)
+        return mutMatrix
+
+
