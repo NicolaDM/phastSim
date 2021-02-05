@@ -120,7 +120,7 @@ if hierarchy:
 	#are reached, extend the dictionary and calculate these new rates. Most positions will have only a few codons explored.
 
 	# instantiate a GenomeTree with all needed rates and categories
-	genome_tree = phastSim.GenomeTree(
+	genome_tree = phastSim.GenomeTree_hierarchical(
 		nCodons=sim_run.nCodons,
 		codon=sim_run.args.codon,
 		ref=ref,
@@ -161,49 +161,22 @@ if hierarchy:
 
 #use simpler approach that collates same rates along the genome - less efficient with more complex models.
 else:
-	#List of dictionaries that let you know at wich position (starting from 0) is the 1st A of the genome, the second A of the genome, etc (well, actually the 0th, the 1st, etc..).
-	#here I could use arrays instead of dictionaries, it might be more efficient.
-	positions=[]
-	for c in range(sim_run.nCat):
-		positions.append([[],[],[],[]])
-	#Total mutation rates cumulatively across the genome
-	totMutMatrix=np.zeros((sim_run.nCat,4,4),dtype=float)
-	#hyper rates of currently affected sites
-	extras=[]
-	#total mutation rate
-	totMut=0.0
-	#tot number of A's, C's, G's and T's in the reference genome
-	#Number of alleles in each category across the genome.
-	totAlleles=np.zeros((sim_run.nCat,4))
-	for pos in range(len(ref)):
-		a=alleles[ref[pos]]
-		cat=sim_run.categories[pos]
-		hyp=hyperCategories[pos]
-		file.write(str(pos+1)+"\t"+str(cat)+"\t"+str(hyp)+"\t")
-		#now sample which alleles are affected by hypermutation and store info in positions and extra vectors
-		if hyp>0:
-			i=np.random.choice(4)
-			j=np.random.choice(3)
-			j=(i+j+1)%4
-			positions[cat][a].append([pos,hyp,i,j])
-			if i==a:
-				extras.append([mutMatrix[a][j]*categoryRates[cat]*(hyperMutRates[hyp-1]-1.0),pos,len(positions[cat][a])-1,cat,hyp,i,j])
-				totMut+=mutMatrix[a][j]*categoryRates[cat]*(hyperMutRates[hyp-1]-1.0)
-			file.write(allelesList[i]+"\t"+allelesList[j]+"\n")
-		else:
-			positions[cat][a].append([pos,0])
-			file.write(".\t"+".\n")
-		for j in range(4):
-			if j!=a:
-				totMutMatrix[cat][a][j]+=mutMatrix[a][j]*categoryRates[cat]
-				totMut+=mutMatrix[a][j]*categoryRates[cat]
-		totAlleles[sim_run.categories[pos]][a]+=1
-	file.close()
-	
-	print("\n Number of each nucleotide in the genome:")
-	print(totAlleles)
 
-	norm=totMut/len(ref)
+	# instantiate a genome tree for the non hierarchical case
+	genome_tree = phastSim.GenomeTree_simpler(
+		nCat=sim_run.nCat,
+		ref=ref,
+		mutMatrix=mutMatrix,
+		categories=sim_run.categories,
+		categoryRates=sim_run.args.categoryRates,
+		hyperMutRates=sim_run.args.hyperMutRates,
+		hyperCategories=hyperCategories,
+		file=file)
+
+	# prepare the associated lists and mutation rate matrices
+	genome_tree.prepare_genome()
+
+	norm=genome_tree.totMut/len(ref)
 	print("\n Total cumulative mutation rate per site before normalization: "+str(norm))
 	#We rescale by the input normalization factor, this is the same as rescaling all the branch lengths by this rescaling factor
 	norm=norm/scale
@@ -215,14 +188,14 @@ else:
 			mutMatrix[i][j]=mutMatrix[i][j]/norm
 			for c in range(sim_run.nCat):
 				if j!=i:
-					totMutMatrix[c][i][j]=totMutMatrix[c][i][j]/norm
-	for e in range(len(extras)):
-		extras[e][0]=extras[e][0]/norm
-	totMut=totMut/norm
+					genome_tree.totMutMatrix[c][i][j]=genome_tree.totMutMatrix[c][i][j]/norm
+	for e in range(len(genome_tree.extras)):
+		genome_tree.extras[e][0]=genome_tree.extras[e][0]/norm
+	totMut=genome_tree.totMut/norm
 	
 	if verbose:
 		print("Base-wise total mutation rates:")
-		print(totMutMatrix)
+		print(genome_tree.totMutMatrix)
 		print("Normalized mutation rates:")
 		print(mutMatrix)
 
@@ -348,7 +321,7 @@ else:
 					print("mutation position "+str(mutatedBasePos)+" category "+str(c)+" allele "+str(i)+" to "+str(j))
 		
 				#in this case, we are mutating a position that was not mutated before. We need to add one entry to the mutation list without removing any old one.
-				if mutatedBasePos<totAlleles[c][i]-len(childMutations[c][i]):
+				if mutatedBasePos<genome_tree.totAlleles[c][i]-len(childMutations[c][i]):
 					#print("New mutation")
 					newMutPos=mutatedBasePos
 					m=0
@@ -360,9 +333,9 @@ else:
 							break
 					childMutations[c][i].insert(m,[newMutPos,j])
 					if createNewick:
-						childNode.mutAnnotation.append(allelesList[i]+str(positions[c][i][newMutPos][0]+1)+allelesList[j])
+						childNode.mutAnnotation.append(allelesList[i]+str(genome_tree.positions[c][i][newMutPos][0]+1)+allelesList[j])
 					
-					infoExtra=positions[c][i][newMutPos]
+					infoExtra=genome_tree.positions[c][i][newMutPos]
 					if infoExtra[1]>0:
 						if infoExtra[2]==i:
 							#remove hypermutation from extras
@@ -389,7 +362,7 @@ else:
 				#in this case, we are mutating a position that was already mutated.
 				#this means that one item from the mutation list needs to be removed or modified, and no item needs to be added.
 				else:
-					newMutatedBasePos=mutatedBasePos-(totAlleles[c][i]-len(childMutations[c][i]))
+					newMutatedBasePos=mutatedBasePos-(genome_tree.totAlleles[c][i]-len(childMutations[c][i]))
 					if verbose:
 						print("Modifying pre-existing mutation")
 						print(newMutatedBasePos)
@@ -400,8 +373,8 @@ else:
 								if childMutations[c][i2][m][1]==i:
 									if newMutatedBasePos==0:
 										if createNewick:
-											childNode.mutAnnotation.append(allelesList[i]+str(positions[c][i2][childMutations[c][i2][m][0]][0]+1)+allelesList[j])
-										infoExtra=positions[c][i2][childMutations[c][i2][m][0]]
+											childNode.mutAnnotation.append(allelesList[i]+str(genome_tree.positions[c][i2][childMutations[c][i2][m][0]][0]+1)+allelesList[j])
+										infoExtra=genome_tree.positions[c][i2][childMutations[c][i2][m][0]]
 										if infoExtra[1]>0:
 											if infoExtra[2]==i:
 												#remove hypermutation from extras
@@ -460,7 +433,7 @@ else:
 	muts=[]
 	for c in range(sim_run.nCat):
 		muts.append([[],[],[],[]])
-	mutateBranchETE(t,muts,totAlleles,totMut,extras)
+	mutateBranchETE(t,muts,genome_tree.totAlleles,totMut,genome_tree.extras)
 time2 = time.time() - start
 print("Total time after simulating sequence evolution along tree with Gillespie approach: "+str(time2))
 
@@ -511,7 +484,7 @@ else:
 			for c in range(sim_run.nCat):
 				for i in range(4):
 					for m in node.mutations[c][i]:
-						mutDict[positions[c][i][m[0]][0]+1]=allelesList[m[1]]
+						mutDict[genome_tree.positions[c][i][m[0]][0]+1]=allelesList[m[1]]
 			mutList=list(mutDict.keys())
 			mutList.sort()
 			for m in mutList:
@@ -571,12 +544,12 @@ if createFasta or createPhylip:
 			for c in range(sim_run.nCat):
 				for i in range(4):
 					for m in mutations[c][i]:
-						refList[positions[c][i][m[0]][0]]=allelesList[m[1]]
+						refList[genome_tree.positions[c][i][m[0]][0]]=allelesList[m[1]]
 			newGenome=''.join(refList)
 			for c in range(sim_run.nCat):
 				for i in range(4):
 					for m in mutations[c][i]:
-						pos=positions[c][i][m[0]][0]
+						pos=genome_tree.positions[c][i][m[0]][0]
 						refList[pos]=ref[pos]
 			return newGenome
 

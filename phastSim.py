@@ -391,7 +391,7 @@ class phastSim_run:
 
 
 
-class GenomeTree:
+class GenomeTree_hierarchical:
     def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, file, verbose):
         self.codon = codon
         self.ref = ref
@@ -762,6 +762,79 @@ class GenomeTree:
         # now mutate children of the current node, calling this function recursively on the node children.
         for c in childNode.children:
             self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick)
+
+
+
+
+class GenomeTree_simpler:
+    def __init__(self, nCat, ref, mutMatrix, categories, categoryRates, hyperMutRates, hyperCategories, file):
+        self.nCat = nCat
+        self.ref = ref
+        self.mutMatrix = mutMatrix
+        self.categories = categories
+        self.categoryRates = categoryRates
+        self.hyperMutRates = hyperMutRates
+        self.hyperCategories = hyperCategories
+
+        self.file = file
+
+        const = Constants()
+        self.alleles = const.alleles
+        self.allelesList = const.allelesList
+
+
+    def prepare_genome(self):
+        # List of dictionaries that let you know at wich position (starting from 0) is the 1st A of the genome,
+        # the second A of the genome, etc (well, actually the 0th, the 1st, etc..).
+        # here I could use arrays instead of dictionaries, it might be more efficient.
+        positions = []
+        for c in range(self.nCat):
+            positions.append([[], [], [], []])
+        # Total mutation rates cumulatively across the genome
+        totMutMatrix = np.zeros((self.nCat, 4, 4), dtype=float)
+        # hyper rates of currently affected sites
+        extras = []
+        # total mutation rate
+        totMut = 0.0
+        # tot number of A's, C's, G's and T's in the reference genome
+        # Number of alleles in each category across the genome.
+        totAlleles = np.zeros((self.nCat, 4))
+        for pos in range(len(self.ref)):
+            a = self.alleles[self.ref[pos]]
+            cat = self.categories[pos]
+            hyp = self.hyperCategories[pos]
+            self.file.write(str(pos + 1) + "\t" + str(cat) + "\t" + str(hyp) + "\t")
+            # now sample which alleles are affected by hypermutation and store info in positions and extra vectors
+            if hyp > 0:
+                i = np.random.choice(4)
+                j = np.random.choice(3)
+                j = (i + j + 1) % 4
+                positions[cat][a].append([pos, hyp, i, j])
+                if i == a:
+                    extras.append([self.mutMatrix[a][j] * self.categoryRates[cat] * (self.hyperMutRates[hyp - 1] - 1.0),
+                                   pos, len(positions[cat][a]) - 1, cat, hyp, i, j])
+                    totMut += self.mutMatrix[a][j] * self.categoryRates[cat] * (self.hyperMutRates[hyp - 1] - 1.0)
+                self.file.write(self.allelesList[i] + "\t" + self.allelesList[j] + "\n")
+            else:
+                positions[cat][a].append([pos, 0])
+                self.file.write(".\t" + ".\n")
+            for j in range(4):
+                if j != a:
+                    totMutMatrix[cat][a][j] += self.mutMatrix[a][j] * self.categoryRates[cat]
+                    totMut += self.mutMatrix[a][j] * self.categoryRates[cat]
+            totAlleles[self.categories[pos]][a] += 1
+        self.file.close()
+
+        print("\n Number of each nucleotide in the genome:")
+        print(totAlleles)
+
+        # set the total mutation rate and cumulative rates as class attributes
+        self.totMut = totMut
+        self.totMutMatrix = totMutMatrix
+        self.extras = extras
+        self.totAlleles = totAlleles
+        self.positions = positions
+
 
 
 # node representing an element of the genome hierarchy, summarizing the total rate of the nodes below it,
