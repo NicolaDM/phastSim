@@ -795,13 +795,37 @@ class GenomeTree_hierarchical:
                 del mutDict[m[0] + 1]
 
 
-    def write_genome(self, tree, output_path, output_file):
+    def write_genome_short(self, tree, output_path, output_file):
         # open a file a create a container
         genomefile = open(output_path + output_file + ".txt", "w")
         mutDict = {}
         # call the recursive function
         self.writeGenomeShort(node=tree, file=genomefile, mutDict=mutDict)
         genomefile.close()
+
+
+    def writeGenome(self, node, file, nRefList):
+        # function to write a complete sequence output iteratively
+        # update list
+        for m in node.mutations:
+            nRefList[m[0]] = self.allelesList[m[2]]
+        # print leaf entry to file
+        if node.is_leaf():
+            file.write(">" + node.name + "\n" + (''.join(nRefList)) + "\n")
+        # pass to children
+        else:
+            for c in node.children:
+                self.writeGenome(c, file, nRefList)
+        # de-update the list so it can be used by siblings etc.
+        for n in range(len(node.mutations)):
+            m = node.mutations[len(node.mutations) - (n + 1)]
+            nRefList[m[0]] = self.allelesList[m[1]]
+
+
+    def write_genome(self, tree, output_path, output_file, refList):
+        file = open(output_path + output_file + ".fasta", "w")
+        self.writeGenome(tree, file, refList)
+        file.close()
 
 
 
@@ -1162,12 +1186,47 @@ class GenomeTree_simpler:
 
 
 
-    def write_genome(self, tree, output_path, output_file):
+    def write_genome_short(self, tree, output_path, output_file):
         # open a file
         genomefile = open(output_path + output_file + ".txt", "w")
         # call the recursive function
         self.writeGenomeShort(node=tree, file=genomefile)
         genomefile.close()
+
+
+    def genomeSeq(self, mutations, refList):
+        # generate the genome sequence of a sample using node mutations and the reference
+        # useful, for example, for generating a fasta file.
+        # used in writing out the full fasta genome
+        for c in range(self.nCat):
+            for i in range(4):
+                for m in mutations[c][i]:
+                    refList[self.positions[c][i][m[0]][0]] = self.allelesList[m[1]]
+        newGenome = ''.join(refList)
+        for c in range(self.nCat):
+            for i in range(4):
+                for m in mutations[c][i]:
+                    pos = self.positions[c][i][m[0]][0]
+                    refList[pos] = self.ref[pos]
+        return newGenome
+
+
+    def writeGenome(self, node, file, refList):
+        # function to write a fasta output iteratively
+        if node.is_leaf():
+            seq = self.genomeSeq(mutations=node.mutations, refList=refList)
+            file.write(">" + node.name + "\n" + seq + "\n")
+        for c in node.children:
+            self.writeGenome(c, file)
+
+
+    def write_genome(self, tree, output_path, output_file, refList):
+        # class specific wrapper to write the full fasta genome
+        # open a file
+        file = open(output_path + output_file + ".fasta", "w")
+        # run the recursive function
+        self.writeGenome(tree, file, refList)
+        file.close()
 
 
 # node representing an element of the genome hierarchy, summarizing the total rate of the nodes below it,
@@ -1248,3 +1307,24 @@ def codon_lookup_table(translationList, codonIndices, codonIndices2):
             indeces2[i2] = indeces[i2]
 
     return isNonsynom, isIntoStop
+
+
+
+def writeGenomeNewick(node):
+    # function to write a newick output iteratively
+    if node.is_leaf():
+        outString = node.name + '['
+    else:
+        outString = '('
+        for c in range(len(node.children)):
+            outString += writeGenomeNewick(node.children[c])
+            if c < len(node.children) - 1:
+                outString += ','
+        outString += ')['
+    stringToAdd = ''
+    for i in range(len(node.mutAnnotation)):
+        stringToAdd += node.mutAnnotation[i]
+        if i < len(node.mutAnnotation) - 1:
+            stringToAdd += ','
+    stringToAdd += (']:' + str(node.dist))
+    return outString + stringToAdd

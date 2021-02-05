@@ -186,40 +186,16 @@ time2 = time.time() - start
 print("Total time after simulating sequence evolution along tree with Gillespie approach: " + str(time2))
 
 # depending on the type of genome_tree, this automatically uses the correct version
-genome_tree.write_genome(tree=t, output_path=args.path, output_file=args.outputFile)
+genome_tree.write_genome_short(tree=t, output_path=args.path, output_file=args.outputFile)
 
 time3 = time.time() - start
 print("Total time after writing short file: " + str(time3))
 
 
-
-
-
-
-
-#function to write a newick output iteratively
-def writeGenomeNewick(node):
-	if node.is_leaf():
-		outString=node.name+'['
-	else:
-		outString='('
-		for c in range(len(node.children)):
-			outString+=writeGenomeNewick(node.children[c])
-			if c<len(node.children)-1:
-				outString+=','
-		outString+=')['
-	stringToAdd=''
-	for i in range(len(node.mutAnnotation)):
-		stringToAdd+=node.mutAnnotation[i]
-		if i<len(node.mutAnnotation)-1:
-			stringToAdd+=','
-	stringToAdd+=(']:'+str(node.dist))
-	return outString+stringToAdd
-
-#If requested, create a newick output
+# If requested, create a newick output
 if createNewick:
-	file=open(pathSimu+outputFile+".tree","w")
-	newickTree=writeGenomeNewick(t)+";\n"
+	file = open(args.path + args.outputFile + ".tree", "w")
+	newickTree = phastSim.writeGenomeNewick(t) + ";\n"
 	file.write(newickTree)
 	file.close()
 	
@@ -227,61 +203,10 @@ if createNewick:
 	print("Total time after writing newick file: "+str(time3))
 
 
-
-
-
-
-if createFasta or createPhylip:
-	if not hierarchy:
-		#generate the genome sequence of a sample using node mutations and the reference
-		#useful, for example, for generating a fasta file.
-		def genomeSeq(mutations):
-			for c in range(sim_run.nCat):
-				for i in range(4):
-					for m in mutations[c][i]:
-						refList[genome_tree.positions[c][i][m[0]][0]]=allelesList[m[1]]
-			newGenome=''.join(refList)
-			for c in range(sim_run.nCat):
-				for i in range(4):
-					for m in mutations[c][i]:
-						pos=genome_tree.positions[c][i][m[0]][0]
-						refList[pos]=ref[pos]
-			return newGenome
-
-
-#If requested, create a fasta output
+# If requested, create a fasta output.
+# Depending on which type of simulation (hierarchical or non-hierarchical), the correct function will be used
 if createFasta:
-	file=open(pathSimu+outputFile+".fasta","w")
-	
-	if hierarchy:
-		#function to write a complete sequence output iteratively
-		def writeGenome(node,file,nRefList):
-			#update list
-			for m in node.mutations:
-				nRefList[m[0]]=allelesList[m[2]]
-			#print leaf entry to file
-			if node.is_leaf():
-				file.write(">"+node.name+"\n"+(''.join(nRefList))+"\n")
-			#pass to children
-			else:
-				for c in node.children:
-					writeGenome(c,file,nRefList)
-			#de-update the list so it can be used by siblings etc. 
-			for n in range(len(node.mutations)):
-				m=node.mutations[len(node.mutations)-(n+1)]
-				nRefList[m[0]]=allelesList[m[1]]
-		writeGenome(t,file,refList)
-
-	else:
-		#function to write a fasta output iteratively
-		def writeGenome(node,file):
-			if node.is_leaf():
-				seq=genomeSeq(node.mutations)
-				file.write(">"+node.name+"\n"+seq+"\n")
-			for c in node.children:
-				writeGenome(c,file)
-		writeGenome(t,file)
-	file.close()
+	genome_tree.write_genome(tree=t, output_path=args.path, output_file=args.outputFile, refList=refList)
 	
 	time3 = time.time() - start
 	print("Total time after writing fasta file: "+str(time3))
