@@ -1,15 +1,8 @@
-# import sys
-# import os
-# import math
 import numpy as np
-# import os.path
-# from os import path
-# import argparse
 from ete3 import Tree
 import time
 import phastSim
-from importlib import reload
-reload(phastSim)
+
 
 """
 Script that simulates sequence evolution along a given input phylogeny.
@@ -28,6 +21,10 @@ ALLOW discretized gamma?
 ALLOW INDELS ?
 ALLOW TREE GENERATED ON THE GO, WITH MUTATIONS AFFECTING FITNESS and therefore birth rate of a lineage ?
 allow mixtures of different models for different parts of the genome (e.g. coding and non-coding at the same time)
+
+#SARS-CoV-2 genome annotation - not used yet but will be useful when simulating under a codon model.
+#geneEnds=[[266,13468],[13468,21555],[21563,25384],[25393,26220],[26245,26472],[26523,27191],[27202,27387],
+[27394,27759],[27894,28259],[28274,29533],[29558,29674]]
 """
 
 # setup the argument parser and read the arguments from command line
@@ -36,40 +33,9 @@ args = parser.parse_args()
 
 # instantiate a phastSim run. This class holds all arguments and constants, which can be easily called as e.g.
 # sim_run.args.path or sim_run.const.alleles
-sim_run = phastSim.phastSim_run(args=args)
-self=sim_run
-
-pathSimu=args.path
-reference=args.reference
-rootGenomeLength=args.rootGenomeLength
-rootGenomeFrequencies=args.rootGenomeFrequencies
+sim_run = phastSim.phastSimRun(args=args)
 np.random.seed(args.seed)
-seed=args.seed
-scale=args.scale
-alpha=args.alpha
-invariable=args.invariable
-mutationRates=args.mutationRates
-categoryProbs=args.categoryProbs
-categoryRates=args.categoryRates
-hyperMutProbs=args.hyperMutProbs
-hyperMutRates=args.hyperMutRates
-verbose=args.verbose
-outputFile=args.outputFile
-createNewick=args.createNewick
-createFasta=args.createFasta
-createPhylip=args.createPhylip
-treeFile=args.treeFile
-hierarchy=not args.noHierarchy
-
-codon=args.codon
-omegaAlpha=args.omegaAlpha
-omegaCategoryProbs=args.omegaCategoryProbs
-omegaCategoryRates=args.omegaCategoryRates
-
-alleles = {"A": 0, "C": 1, "G": 2, "T": 3, "a": 0, "c": 1, "g": 2, "t": 3, "u": 3, "U": 3}
-allelesList = ["A", "C", "G", "T"]
-nAlleles = 4
-
+hierarchy = not args.noHierarchy
 
 # initialise the root genome. Reads either from file or creates a genome in codon or nucleotide mode
 ref, refList = sim_run.init_rootGenome()
@@ -91,31 +57,31 @@ else:
 	omegas = None
 
 
-#SARS-CoV-2 genome annotation - not used yet but will be useful when simulating under a codon model.
-#geneEnds=[[266,13468],[13468,21555],[21563,25384],[25393,26220],[26245,26472],[26523,27191],[27202,27387],[27394,27759],[27894,28259],[28274,29533],[29558,29674]]
-
 
 # Loads a tree structure from a newick string in ETE2. The returned variable t is the root node for the tree.
 start = time.time()
-t = Tree(pathSimu+treeFile)
+t = Tree(args.path + args.treeFile)
 time1 = time.time() - start
-print("Time for reading tree with ETE3: "+str(time1))
+print("Time for reading tree with ETE3: " + str(time1))
 	
 
+# save information about the categories of each site on a file
+file = open(args.path + args.outputFile + ".info", "w")
+file.write("pos\t" + "cat\t" + "hyperCat\t" + "hyperAlleleFrom\t" + "hyperAlleleTo\n")
 
-#save information about the categories of each site on a file
-file=open(pathSimu+outputFile+".info","w")
-file.write("pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo\n")
 
-
-#Hierarchical approach (DIVIDE ET IMPERA ALONG THE GENOME),
+# Hierarchical approach (DIVIDE ET IMPERA ALONG THE GENOME),
 # WHEN THE RATES ARE UPDATED, UPDATE ONLY RATE OF THE SITE AND OF ALL THE NODES ON TOP OF THE HYRARCHY.
-# THAT IS, DEFINE A tree STRUCTURE, WITH TERMINAL NODES BEING GENOME LOCI AND WITH INTERNAL NODES BING MERGING GROUPS OF LOCI CONTAINING INFORMATION ABOUT THEIR CUMULATIVE RATES.
+# THAT IS, DEFINE A tree STRUCTURE, WITH TERMINAL NODES BEING GENOME LOCI
+# AND WITH INTERNAL NODES BING MERGING GROUPS OF LOCI CONTAINING INFORMATION ABOUT THEIR CUMULATIVE RATES.
 # THIS WAY UPDATING A MUTATION EVENT REQUIRES COST LOGARITHMIC IN GENOME SIZE EVEN IF EVERY SITE HAS A DIFFERENT RATE. 
 if hierarchy:
-	#CODONS: maybe don't create all the matrices from the start (might have too large an memory and time preparation cost).
-	#instead, initialize only the rates from the reference allele (only 9 rates are needed), and store them in a dictionary at level 0 terminal nodes, and when new codons at a position 
-	#are reached, extend the dictionary and calculate these new rates. Most positions will have only a few codons explored.
+	# CODONS: maybe don't create all the matrices from the start
+	# (might have too large an memory and time preparation cost).
+	# instead, initialize only the rates from the reference allele (only 9 rates are needed),
+	# and store them in a dictionary at level 0 terminal nodes, and when new codons at a position
+	# are reached, extend the dictionary and calculate these new rates.
+	# Most positions will have only a few codons explored.
 
 	# instantiate a GenomeTree with all needed rates and categories
 	genome_tree = phastSim.GenomeTree_hierarchical(
@@ -151,9 +117,8 @@ if hierarchy:
 
 
 
-#use simpler approach that collates same rates along the genome - less efficient with more complex models.
+# use simpler approach that collates same rates along the genome - less efficient with more complex models.
 else:
-
 	# instantiate a genome tree for the non hierarchical case
 	genome_tree = phastSim.GenomeTree_simpler(
 		nCat=sim_run.nCat,
@@ -193,7 +158,7 @@ print("Total time after writing short file: " + str(time3))
 
 
 # If requested, create a newick output
-if createNewick:
+if args.createNewick:
 	file = open(args.path + args.outputFile + ".tree", "w")
 	newickTree = phastSim.writeGenomeNewick(t) + ";\n"
 	file.write(newickTree)
@@ -205,7 +170,7 @@ if createNewick:
 
 # If requested, create a fasta output.
 # Depending on which type of simulation (hierarchical or non-hierarchical), the correct function will be used
-if createFasta:
+if args.createFasta:
 	genome_tree.write_genome(tree=t, output_path=args.path, output_file=args.outputFile, refList=refList)
 	
 	time3 = time.time() - start
@@ -213,60 +178,14 @@ if createFasta:
 	
 
 
-#If requested, create a phylip output
-if createPhylip:
-	file=open(pathSimu+outputFile+".phy","w")
-	file.write("\t"+str(len(t))+"\t"+str(len(ref))+"\n")
-	
-	if hierarchy:
-		#function to write a complete sequence output iteratively
-		def writeGenomePhylip(node,file,nRefList):
-			#update list
-			for m in node.mutations:
-				nRefList[m[0]]=allelesList[m[2]]
-			#print leaf entry to file
-			if node.is_leaf():
-				file.write(node.name+"\t"+(''.join(nRefList))+"\n")
-			else:
-				for c in node.children:
-					writeGenomePhylip(c,file,nRefList)
-			#de-update the list so it can be used by siblings etc. 
-			for n in range(len(node.mutations)):
-				m=node.mutations[len(node.mutations)-(n+1)]
-				nRefList[m[0]]=allelesList[m[1]]
-		writeGenomePhylip(t,file,refList)
-	else:
-		#function to write a phylip output iteratively
-		def writeGenomePhylip(node,file):
-			if node.is_leaf():
-				seq=genomeSeq(node.mutations)
-				file.write(node.name+"\t"+seq+"\n")
-			for c in node.children:
-				writeGenomePhylip(c,file)
-		writeGenomePhylip(t,file)
-	file.close()
+# If requested, create a phylip output
+if args.createPhylip:
+	genome_tree.write_genome_phylip(tree=t, output_path=args.path, output_file=args.outputFile, refList=refList)
 	
 	time3 = time.time() - start
 	print("Total time after writing phylip file: "+str(time3))
 
+
 elapsedTime = time.time() - start
 print("Overall time: "+str(elapsedTime))
-
-
-
-
-
-
-
-
-
-
 exit()
-
-
-
-
-
-
-
-

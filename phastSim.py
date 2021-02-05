@@ -1,11 +1,10 @@
 import numpy as np
 import argparse
-from ete3 import Tree
-import time
+# from ete3 import Tree
+
 
 
 # CONSTANTS
-# possible alleles
 class Constants:
     def __init__(self):
         self.alleles = {"A": 0, "C": 1, "G": 2, "T": 3, "a": 0, "c": 1, "g": 2, "t": 3, "u": 3, "U": 3}
@@ -34,8 +33,9 @@ def setup_argument_parser():
                              '--path and in newick format).')
     parser.add_argument('--scale', default=1.0, type=float,
                         help='Scale the simulation tree by this amount (default 1.0). Branch lengths are assumed'
-                             ' in terms of expected substitutions per site (more or less, as frequencies changes through'
-                             ' time, total mutation rate might also  change).')
+                             ' in terms of expected substitutions per site '
+                             '(more or less, as frequencies changes through time,'
+                             ' total mutation rate might also change).')
     parser.add_argument("--seed", help="Seed for random simulator in genes simulations", type=int, default=1)
     parser.add_argument("--alpha",
                         help="Parameter of the gamma distribution for mutation rate variation; each site will "
@@ -87,7 +87,7 @@ def setup_argument_parser():
                         type=float, nargs='+', default=[])
     parser.add_argument("--hyperMutRates",
                         help="Rates of recurring mutations. Different classes of recurring mutations with different "
-                             "hypermutabilities can be specified. By defaultno recurrent mutations are simulated. "
+                             "hypermutabilities can be specified. By default no recurrent mutations are simulated. "
                              "The number of rates has to be the same as the number of recurring mutation site "
                              "proportions, otherwise an error is thrown.",
                         type=float, nargs='+', default=[])
@@ -115,7 +115,7 @@ def setup_argument_parser():
 
 
 
-class phastSim_run:
+class phastSimRun:
     def __init__(self, args):
         self.args = args
         self.const = Constants()
@@ -829,6 +829,32 @@ class GenomeTree_hierarchical:
 
 
 
+    def writeGenomePhylip(self, node, file, nRefList):
+        # function to write a complete sequence output iteratively
+        # update list
+        for m in node.mutations:
+            nRefList[m[0]] = self.allelesList[m[2]]
+        # print leaf entry to file
+        if node.is_leaf():
+            file.write(node.name + "\t" + (''.join(nRefList)) + "\n")
+        else:
+            for c in node.children:
+                self.writeGenomePhylip(c, file, nRefList)
+        # de-update the list so it can be used by siblings etc.
+        for n in range(len(node.mutations)):
+            m = node.mutations[len(node.mutations) - (n + 1)]
+            nRefList[m[0]] = self.allelesList[m[1]]
+
+
+    def write_genome_phylip(self, tree, output_path, output_file, refList):
+        # open a file for the phylip output
+        file = open(output_path + output_file + ".phy", "w")
+        file.write("\t" + str(len(tree)) + "\t" + str(len(self.ref)) + "\n")
+        # run the recursive function to write the phylip formatted file
+        self.writeGenomePhylip(node=tree, file=file, nRefList=refList)
+        file.close()
+
+
 class GenomeTree_simpler:
     def __init__(self, nCat, ref, mutMatrix, categories, categoryRates, hyperMutRates, hyperCategories, file, verbose):
         self.nCat = nCat
@@ -1003,7 +1029,8 @@ class GenomeTree_simpler:
                 exit()
 
             if hyperExtra:
-                # element already removed from extraChild list, now use info in extra to add, remove or modify entry from mutations list, amend total rates, etc.
+                # element already removed from extraChild list, now use info in extra to add,
+                # remove or modify entry from mutations list, amend total rates, etc.
                 a = self.alleles[self.ref[extra[1]]]
                 extraRate = extra[0]
                 rate -= extraRate
@@ -1217,7 +1244,7 @@ class GenomeTree_simpler:
             seq = self.genomeSeq(mutations=node.mutations, refList=refList)
             file.write(">" + node.name + "\n" + seq + "\n")
         for c in node.children:
-            self.writeGenome(c, file)
+            self.writeGenome(c, file, refList)
 
 
     def write_genome(self, tree, output_path, output_file, refList):
@@ -1229,9 +1256,31 @@ class GenomeTree_simpler:
         file.close()
 
 
-# node representing an element of the genome hierarchy, summarizing the total rate of the nodes below it,
-# that is, the total rate of part of the genome.
+
+    def writeGenomePhylip(self, node, file, nRefList):
+        # function to write a phylip output iteratively
+        if node.is_leaf():
+            seq = self.genomeSeq(mutations=node.mutations, refList=nRefList)
+            file.write(node.name + "\t" + seq + "\n")
+        for c in node.children:
+            self.writeGenomePhylip(c, file, nRefList)
+
+
+    def write_genome_phylip(self, tree, output_path, output_file, refList):
+        # open a file for the phylip output
+        file = open(output_path + output_file + ".phy", "w")
+        file.write("\t" + str(len(tree)) + "\t" + str(len(self.ref)) + "\n")
+        # run the recursive function to write the phylip formatted file
+        self.writeGenomePhylip(node=tree, file=file, nRefList=refList)
+        file.close()
+
+
+
+
 class genomeNode:
+    # node representing an element of the genome hierarchy, summarizing the total rate of the nodes below it,
+    # that is, the total rate of part of the genome.
+
     def __init__(self, level=0):  # , upNode=None
         # total mutation rate at this genome node
         self.rate = 0.0
