@@ -118,7 +118,8 @@ if hierarchy:
 	#CODONS: maybe don't create all the matrices from the start (might have too large an memory and time preparation cost).
 	#instead, initialize only the rates from the reference allele (only 9 rates are needed), and store them in a dictionary at level 0 terminal nodes, and when new codons at a position 
 	#are reached, extend the dictionary and calculate these new rates. Most positions will have only a few codons explored.
-	
+
+	# instantiate a GenomeTree with all needed rates and categories
 	genome_tree = phastSim.GenomeTree(
 		nCodons=sim_run.nCodons,
 		codon=sim_run.args.codon,
@@ -130,37 +131,13 @@ if hierarchy:
 		hyperMutRates=sim_run.args.hyperMutRates,
 		file=file)
 
-
-	
+	# populate the GenomeTree
 	genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
-	
-	#I am assuming the branch lengths are in number of substitutions per nucleotide, even though we might be simulating a codon model.
-	norm=genome_tree.genomeRoot.rate/len(ref)
-	if verbose:
-		print("\n Total cumulative mutation rate per site before normalization: "+str(norm))
-	#We rescale by the input normalization factor, this is the same as rescaling all the branch lengths by this rescaling factor
-	norm=norm/scale
-	
-	if codon:
-		#function to iteratively normalize all rates
-		def normalize(node,norm):
-			node.rate/=norm
-			if node.isTerminal:
-				node.rates[node.allele]/=norm
-			else:
-				normalize(node.belowNodes[0],norm)
-				normalize(node.belowNodes[1],norm)
-		normalize(genome_tree.genomeRoot,norm)
-	else:
-		#function to iteratively normalize all rates
-		def normalize(node,norm):
-			node.rate/=norm
-			if node.isTerminal:
-				node.rates/=norm
-			else:
-				normalize(node.belowNodes[0],norm)
-				normalize(node.belowNodes[1],norm)
-		normalize(genome_tree.genomeRoot,norm)
+
+	# normalize all rates
+	norm = genome_tree.normalize_rates(scale=sim_run.args.scale)
+
+
 	
 	alRange=range(nAlleles)
 	range9=range(9)

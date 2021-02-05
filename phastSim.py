@@ -537,7 +537,41 @@ class GenomeTree:
             node.rate = firstChild.rate + secondChild.rate
 
 
+    def normalize_rates(self, scale):
+        # I am assuming the branch lengths are in number of substitutions per nucleotide,
+        # even though we might be simulating a codon model.
+        norm = self.genomeRoot.rate / len(self.ref)
 
+        print("\n Total cumulative mutation rate per site before normalization: " + str(norm))
+        # We rescale by the input normalization factor, this is the same as rescaling all
+        # the branch lengths by this rescaling factor
+        norm = norm / scale
+
+        # define a function either for codon or nucleotide mode
+        if self.codon:
+            # function to iteratively normalize all rates
+            def normalize(node, norm):
+                node.rate /= norm
+                if node.isTerminal:
+                    node.rates[node.allele] /= norm
+                else:
+                    normalize(node.belowNodes[0], norm)
+                    normalize(node.belowNodes[1], norm)
+
+        else:
+            # function to iteratively normalize all rates
+            def normalize(node, norm):
+                node.rate /= norm
+                if node.isTerminal:
+                    node.rates /= norm
+                else:
+                    normalize(node.belowNodes[0], norm)
+                    normalize(node.belowNodes[1], norm)
+
+        # normalize the rates
+        normalize(node=self.genomeRoot, norm=norm)
+        # and return the norm factor
+        return norm
 
 
 
