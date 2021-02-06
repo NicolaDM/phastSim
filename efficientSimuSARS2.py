@@ -16,6 +16,7 @@ import time
 #python3 efficientSimuSARS2.py --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 --scale 2.0 --hyperMutProbs 0.01 --hyperMutRates  100.0 --codon --treeFile rob-11-7-20.newick --createFasta
 
 #Possible future extensions: 
+#allow multiple replicates in a single execution?
 #add wrapper to simulate whole sars-cov-2 genome evolution ?
 #CONSIDER TO EXTEND THE RANGE OF ALLOWED MODELS to allow easier specification og e.g. HKY, JC, etc?
 #ALLOW discretized gamma?
@@ -302,7 +303,10 @@ print("Time for reading tree with ETE3: "+str(time1))
 
 #save information about the categories of each site on a file
 file=open(pathSimu+outputFile+".info","w")
-file.write("pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo\n")
+if codon:
+	file.write("pos\t"+"omega\t"+"cat1\t"+"hyperCat1\t"+"hyperAlleleFrom1\t"+"hyperAlleleTo1\t"+"cat2\t"+"hyperCat2\t"+"hyperAlleleFrom2\t"+"hyperAlleleTo2\t"+"cat3\t"+"hyperCat3\t"+"hyperAlleleFrom3\t"+"hyperAlleleTo3\n")
+else:
+	file.write("pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo\n")
 
 
 #Hierarchical approach (DIVIDE ET IMPERA ALONG THE GENOME),
