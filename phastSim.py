@@ -855,7 +855,7 @@ class GenomeTree_hierarchical:
         file.close()
 
 
-class GenomeTree_simpler:
+class GenomeTree_vanilla:
     def __init__(self, nCat, ref, mutMatrix, categories, categoryRates, hyperMutRates, hyperCategories, file, verbose):
         self.nCat = nCat
         self.ref = ref

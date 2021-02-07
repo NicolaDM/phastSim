@@ -120,7 +120,7 @@ if hierarchy:
 # use simpler approach that collates same rates along the genome - less efficient with more complex models.
 else:
 	# instantiate a genome tree for the non hierarchical case
-	genome_tree = phastSim.GenomeTree_simpler(
+	genome_tree = phastSim.GenomeTree_vanilla(
 		nCat=sim_run.nCat,
 		ref=ref,
 		mutMatrix=mutMatrix,
