@@ -3,7 +3,7 @@
 import numpy as np
 from ete3 import Tree
 import time
-import phastSim
+import phastSim.phastSim as phastSim
 
 
 """
