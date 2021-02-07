@@ -120,6 +120,7 @@ class phastSimRun:
         self.args = args
         self.const = Constants()
         self.hierarchy = not self.args.noHierarchy
+        self.nCodons = None
 
 
     def init_rootGenome(self):
