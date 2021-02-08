@@ -167,7 +167,7 @@ print("Total time after writing short file: " + str(time3))
 
 # If requested, create a newick output
 if args.createNewick:
-	file = open(args.path + args.outputFile + ".tree", "w")
+	file = open(args.outpath + args.outputFile + ".tree", "w")
 	newickTree = phastSim.writeGenomeNewick(t) + ";\n"
 	file.write(newickTree)
 	file.close()

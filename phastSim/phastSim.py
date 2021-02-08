@@ -834,7 +834,9 @@ class GenomeTree_hierarchical:
             nRefList[m[0]] = self.allelesList[m[2]]
         # print leaf entry to file
         if node.is_leaf():
-            file.write(">" + node.name + "\n" + (''.join(nRefList)) + "\n")
+            # first write the header then the sequence directly from the array
+            file.write(">" + node.name + "\n")# + (''.join(nRefList)) + "\n")
+            nRefList.tofile(file)
         # pass to children
         else:
             for c in node.children:
@@ -847,6 +849,8 @@ class GenomeTree_hierarchical:
 
     def write_genome(self, tree, output_path, output_file, refList):
         file = open(output_path + output_file + ".fasta", "w")
+        # convert reference list to an array
+        refList = np.array(refList)
         self.writeGenome(tree, file, refList)
         file.close()
 
