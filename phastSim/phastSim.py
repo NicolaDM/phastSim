@@ -1,5 +1,6 @@
 import numpy as np
 import argparse
+from importlib_resources import files
 # from ete3 import Tree
 
 
@@ -18,7 +19,7 @@ def setup_argument_parser():
     parser = argparse.ArgumentParser(
         description='Efficiently simulate sequence evolution along phylogenies with short branches.')
     parser.add_argument('--path', default="", help='Path where to run simulations.')
-    parser.add_argument('--reference', default="MN908947.3.fasta",
+    parser.add_argument('--reference', default=None,
                         help='File containing the reference genome to be used as root genome. '
                              'To be found in the folder specified with --path.')
     parser.add_argument("--rootGenomeLength",
@@ -29,7 +30,7 @@ def setup_argument_parser():
                         help="Frequencies of different states (non-stop codons or nucleotides depending "
                              "on the simulations). If not provided, will use those for SARS-CoV-2 reference genome.",
                         type=float, nargs='+', default=[1.0])
-    parser.add_argument('--treeFile', default="exampleTree.tree",
+    parser.add_argument('--treeFile', default=None,
                         help='Name of file containing the tree used to simulate sequences (assumed within the '
                              '--path and in newick format).')
     parser.add_argument('--scale', default=1.0, type=float,
@@ -123,6 +124,18 @@ class phastSimRun:
         self.hierarchy = not self.args.noHierarchy
         self.nCodons = None
         self.range4=range(4)
+
+        self.check_default_args()
+
+
+    def check_default_args(self):
+        # if the reference or the tree arguments are not set, then use the default ones shipped with the package
+        if not self.args.reference:
+            reference = files('phastSim.example').joinpath('MN908947.3.fasta')
+            self.args.reference = str(reference)
+        if not self.args.treeFile:
+            tree = files('phastSim.example').joinpath('exampleTree.tree')
+            self.args.treeFile = str(tree)
 
 
     def init_rootGenome(self):
