@@ -7,7 +7,8 @@ import argparse
 # CONSTANTS
 class Constants:
     def __init__(self):
-        self.alleles = {"A": 0, "C": 1, "G": 2, "T": 3, "a": 0, "c": 1, "g": 2, "t": 3, "u": 3, "U": 3}
+        #self.alleles = {"A": 0, "C": 1, "G": 2, "T": 3, "a": 0, "c": 1, "g": 2, "t": 3, "u": 3, "U": 3}
+        self.alleles = {"A": 0, "C": 1, "G": 2, "T": 3}
         self.allelesList = ["A", "C", "G", "T"]
         self.nAlleles = 4
         self.stopCodons = ["TAA", "TGA", "TAG"]
@@ -121,6 +122,7 @@ class phastSimRun:
         self.const = Constants()
         self.hierarchy = not self.args.noHierarchy
         self.nCodons = None
+        self.range4=range(4)
 
 
     def init_rootGenome(self):
@@ -159,6 +161,7 @@ class phastSimRun:
         return ref, refList
 
 
+	#Create root genome randomly
     def create_rootGenome_codon(self):
         rootGenomeFrequencies = self.args.rootGenomeFrequencies
         rootGenomeLength = self.args.rootGenomeLength
@@ -181,10 +184,10 @@ class phastSimRun:
             print("Error, wrong number of root frequencies given")
             exit()
 
+		#Add stop codon frequencies (set to 0) to list of frequencies
         if len(rootGenomeFrequencies) == 61:
             rootGenomeFrequencies = rootGenomeFrequencies[:48] + [0.0] + [rootGenomeFrequencies[48]] + [
                 0.0] + rootGenomeFrequencies[49:54] + [0.0] + rootGenomeFrequencies[54:]
-
 
         sum_freq = np.sum(rootGenomeFrequencies)
 
@@ -194,22 +197,20 @@ class phastSimRun:
             print("\n Normalizing root state frequencies. New frequencies:")
             print(rootGenomeFrequencies)
 
-
         if (rootGenomeLength % 3) != 0:
             print("Codon model, but root genome length not multiple of 3. Simulating " + str(
                 int(rootGenomeLength / 3)) + " codons.")
-        cods = np.random.choice(np.arange(64), size=int(rootGenomeLength / 3), replace=True,
-                                p=rootGenomeFrequencies)
-
+                
+        range4=self.const.range4
         allelesList = self.const.allelesList
         codonAllelesList = []
-        for i1 in range(4):
-            for i2 in range(4):
-                for i3 in range(4):
+        for i1 in range4:
+            for i2 in range4:
+                for i3 in range4:
                     codonAllelesList.append(allelesList[i1] + allelesList[i2] + allelesList[i3])
-        codList = []
-        for i in range(int(rootGenomeLength / 3)):
-            codList.append(codonAllelesList[cods[i]])
+        codList = np.random.choice(codonAllelesList, size=int(rootGenomeLength / 3), replace=True,
+                                p=rootGenomeFrequencies)
+	
         ref = "".join(codList)
         refList = list(ref)
         return ref, refList
@@ -269,6 +270,7 @@ class phastSimRun:
     def init_gamma_rates(self):
         categoryProbs = self.args.categoryProbs
         categoryRates = self.args.categoryRates
+        categoryRates=np.array(categoryRates)
 
         if self.args.alpha >= 0.000000001:
             print(f"Using a continuous gamma rate distribution with parameter alpha={self.args.alpha}")
@@ -295,12 +297,9 @@ class phastSimRun:
             print("Using a discrete distribution for variation in rates across the genome.")
             print(categoryProbs)
             print(categoryRates)
-            # sample category for each site of the genome
-            gammaRates = np.zeros(self.ref_len)
             categories = np.random.choice(nCat, size=self.ref_len, p=categoryProbs)
             self.categories = categories
-            for i in range(self.ref_len):
-                gammaRates[i] = categoryRates[categories[i]]
+            gammaRates=categoryRates[categories]
 
         invariable = self.args.invariable
         if invariable >= 0.000000001:
@@ -354,8 +353,11 @@ class phastSimRun:
         omegaAlpha = self.args.omegaAlpha
         omegaCategoryProbs = self.args.omegaCategoryProbs
         omegaCategoryRates = self.args.omegaCategoryRates
+        
+        omegaCategoryRates=np.array(omegaCategoryRates)
 
         nCodons = int(self.ref_len / 3)
+        
         self.nCodons = nCodons
         print("Using a codon model")
 
@@ -382,11 +384,8 @@ class phastSimRun:
             print(omegaCategoryProbs)
             print(omegaCategoryRates)
 
-            # sample category for each site of the genome
-            omegas = np.zeros(nCodons)
             omegaCategories = np.random.choice(nCatOmega, size=nCodons, p=omegaCategoryProbs)
-            for i in range(nCodons):
-                omegas[i] = omegaCategoryRates[omegaCategories[i]]
+            omegas=omegaCategoryRates[omegaCategories]
 
         return omegas
 
@@ -434,6 +433,10 @@ class GenomeTree_hierarchical:
             isNonsynom, isIntoStop = codon_lookup_table(translationList, codonIndices, codonIndices2)
             self.isNonsynom = isNonsynom
             self.isIntoStop = isIntoStop
+            
+            #create array of all initial rates
+            self.allRates=np.zeros((nCodons,10))
+            self.range3=range(3)
 
         # root of the starting (level 0) genome tree
         self.genomeRoot = genomeNode()
@@ -451,32 +454,39 @@ class GenomeTree_hierarchical:
             node.refNode = node
             # the current allele at this terminal node. It starts as the reference allele at the considered position.
             if self.codon:
-                if (pos < self.nTerminalNodes - 1) and (self.ref[pos * 3:(pos + 1) * 3] in self.stopCodons):
-                    print(f"Warning: stop codon in the middle of the reference {pos * 3 + 1}"
+                node.allele = self.codonAlleles[self.ref[pos * 3:(pos + 1) * 3]]
+                if node.allele in self.stopCodons:
+                    self.omegas[pos] = 0.0
+                    if (pos < self.nTerminalNodes - 1):
+                    	print(f"Warning: stop codon in the middle of the reference {pos * 3 + 1}"
                           f" {self.ref[pos * 3:(pos + 1) * 3]}."
                           f"Continuing simulations but setting omega=0 for this position.")
-                    self.omegas[pos] = 0.0
-                # print(ref[pos*3:(pos+1)*3])
-                node.allele = self.codonAlleles[self.ref[pos * 3:(pos + 1) * 3]]
-                # print(node.allele)
+                #if (pos < self.nTerminalNodes - 1) and (self.ref[pos * 3:(pos + 1) * 3] in self.stopCodons):
+                #    print(f"Warning: stop codon in the middle of the reference {pos * 3 + 1}"
+                #          f" {self.ref[pos * 3:(pos + 1) * 3]}."
+                #          f"Continuing simulations but setting omega=0 for this position.")
+                #    self.omegas[pos] = 0.0
+                
                 self.file.write(str(pos * 3 + 1) + "-" + str(pos * 3 + 3) + "\t" + str(self.omegas[pos]) + "\t")
                 node.rates = {}
                 node.hyper = {}
-                node.rates[node.allele] = np.zeros(10)
+                #Nicola: create initial mega-array of zeros(10) and pass just index to it?
+                node.rates[node.allele]= self.allRates[pos]
+                #node.rates[node.allele] = np.zeros(10)
                 indeces = self.codonIndices[node.allele]
                 node.rate = 0.0
-                for i2 in range(3):
+                range3=self.range3
+                for i2 in range3:
                     pos2 = pos * 3 + i2
                     self.file.write(str(self.gammaRates[pos2]) + "\t" + str(self.hyperCategories[pos2]) + "\t")
                     nuc1 = indeces[i2]
-                    for i3 in range(3):
+                    for i3 in range3:
                         nuc2 = (nuc1 + i3 + 1) % 4
                         if self.isNonsynom[node.allele, i2, i3]:
                             if self.isIntoStop[node.allele, i2, i3]:
                                 node.rates[node.allele][i2 * 3 + i3] = 0.0
                             else:
-                                node.rates[node.allele][i2 * 3 + i3] = self.omegas[pos] * self.mutMatrix[nuc1][nuc2] * \
-                                                                       self.gammaRates[pos2]
+                                node.rates[node.allele][i2 * 3 + i3] = self.omegas[pos] * self.mutMatrix[nuc1][nuc2] * self.gammaRates[pos2]
                         else:
                             node.rates[node.allele][i2 * 3 + i3] = self.mutMatrix[nuc1][nuc2] * self.gammaRates[pos2]
                     if self.hyperCategories[pos2] > 0:
@@ -491,7 +501,7 @@ class GenomeTree_hierarchical:
                         self.file.write(self.allelesList[i] + "\t" + self.allelesList[(i + j + 1) % 4] + "\t")
                     else:
                         self.file.write(".\t" + ".\t")
-                    for i3 in range(3):
+                    for i3 in range3:
                         node.rate += node.rates[node.allele][i2 * 3 + i3]
                     node.rates[node.allele][9] = node.rate
                 self.file.write("\n")
@@ -633,10 +643,11 @@ class GenomeTree_hierarchical:
                     node.rates[parentGenomeNode.allele] = np.zeros(10)
                     indeces = self.codonIndices[parentGenomeNode.allele]
                     parentGenomeNode.rate = 0.0
-                    for i2 in range(3):
+                    range3=self.range3
+                    for i2 in range3:
                         pos2 = node.genomePos[0] * 3 + i2
                         nuc1 = indeces[i2]
-                        for i3 in range(3):
+                        for i3 in range3:
                             nuc2 = (nuc1 + i3 + 1) % 4
                             if self.isNonsynom[parentGenomeNode.allele, i2, i3]:
                                 if self.isIntoStop[parentGenomeNode.allele, i2, i3]:
@@ -652,7 +663,7 @@ class GenomeTree_hierarchical:
                             if node.hyper[i2][0] == nuc1:
                                 node.rates[parentGenomeNode.allele][i2 * 3 + node.hyper[i2][1]] *= self.hyperMutRates[
                                     self.hyperCategories[pos2] - 1]
-                        for i3 in range(3):
+                        for i3 in range3:
                             node.rates[parentGenomeNode.allele][9] += node.rates[parentGenomeNode.allele][i2 * 3 + i3]
                 parentGenomeNode.rate = node.rates[parentGenomeNode.allele][9]
                 if self.verbose:
