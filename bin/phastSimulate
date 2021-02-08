@@ -63,13 +63,13 @@ else:
 
 # Loads a tree structure from a newick string in ETE2. The returned variable t is the root node for the tree.
 start = time.time()
-t = Tree(args.path + args.treeFile)
+t = Tree(args.treeFile)
 time1 = time.time() - start
 print("Time for reading tree with ETE3: " + str(time1))
 	
 
 # save information about the categories of each site on a file
-file = open(args.path + args.outputFile + ".info", "w")
+file = open(args.outpath + args.outputFile + ".info", "w")
 if args.codon:
 	file.write("pos\t"+"omega\t"+"cat1\t"+"hyperCat1\t"+"hyperAlleleFrom1\t"+"hyperAlleleTo1\t"+
 			   "cat2\t"+"hyperCat2\t"+"hyperAlleleFrom2\t"+"hyperAlleleTo2\t"+"cat3\t"+"hyperCat3\t"
@@ -159,7 +159,7 @@ time2 = time.time() - start
 print("Total time after simulating sequence evolution along tree with Gillespie approach: " + str(time2))
 
 # depending on the type of genome_tree, this automatically uses the correct version
-genome_tree.write_genome_short(tree=t, output_path=args.path, output_file=args.outputFile)
+genome_tree.write_genome_short(tree=t, output_path=args.outpath, output_file=args.outputFile)
 
 time3 = time.time() - start
 print("Total time after writing short file: " + str(time3))
@@ -179,7 +179,7 @@ if args.createNewick:
 # If requested, create a fasta output.
 # Depending on which type of simulation (hierarchical or non-hierarchical), the correct function will be used
 if args.createFasta:
-	genome_tree.write_genome(tree=t, output_path=args.path, output_file=args.outputFile, refList=refList)
+	genome_tree.write_genome(tree=t, output_path=args.outpath, output_file=args.outputFile, refList=refList)
 	
 	time3 = time.time() - start
 	print("Total time after writing fasta file: "+str(time3))
@@ -188,7 +188,7 @@ if args.createFasta:
 
 # If requested, create a phylip output
 if args.createPhylip:
-	genome_tree.write_genome_phylip(tree=t, output_path=args.path, output_file=args.outputFile, refList=refList)
+	genome_tree.write_genome_phylip(tree=t, output_path=args.outpath, output_file=args.outputFile, refList=refList)
 	
 	time3 = time.time() - start
 	print("Total time after writing phylip file: "+str(time3))

@@ -18,10 +18,9 @@ class Constants:
 def setup_argument_parser():
     parser = argparse.ArgumentParser(
         description='Efficiently simulate sequence evolution along phylogenies with short branches.')
-    parser.add_argument('--path', default="", help='Path where to run simulations.')
+    parser.add_argument('--outpath', default="./", help='Path where to place the results of the simulations.')
     parser.add_argument('--reference', default=None,
-                        help='File containing the reference genome to be used as root genome. '
-                             'To be found in the folder specified with --path.')
+                        help='File containing the reference genome to be used as root genome.')
     parser.add_argument("--rootGenomeLength",
                         help="A root genome of this size is randomly created. default=0 means that the root genome "
                              "is instead taken as in the reference file.",
@@ -31,8 +30,7 @@ def setup_argument_parser():
                              "on the simulations). If not provided, will use those for SARS-CoV-2 reference genome.",
                         type=float, nargs='+', default=[1.0])
     parser.add_argument('--treeFile', default=None,
-                        help='Name of file containing the tree used to simulate sequences (assumed within the '
-                             '--path and in newick format).')
+                        help='Name of file containing the tree used to simulate sequences (newick format).')
     parser.add_argument('--scale', default=1.0, type=float,
                         help='Scale the simulation tree by this amount (default 1.0). Branch lengths are assumed'
                              ' in terms of expected substitutions per site '
@@ -161,7 +159,7 @@ class phastSimRun:
 
     def load_rootGenome_file(self):
         # collect reference
-        reference_file = f'{self.args.path}/{self.args.reference}'
+        reference_file = f'{self.args.reference}'
         file = open(reference_file)
         line = file.readline()
         ref = ""
