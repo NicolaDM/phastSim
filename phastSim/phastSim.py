@@ -169,6 +169,8 @@ class phastSimRun:
         file.close()
         print(f"\n Finished reading reference genome at {reference_file} with {str(len(ref))} bases.")
         refList = list(ref)
+        #refList = np.array(refList)
+        #refList=np.char.split(ref, sep = '')
         return ref, refList
 
 
@@ -224,6 +226,7 @@ class phastSimRun:
 	
         ref = "".join(codList)
         refList = list(ref)
+        #refList = np.array(refList)
         return ref, refList
 
 
@@ -251,6 +254,7 @@ class phastSimRun:
         allelesList = self.const.allelesList
         refList = np.random.choice(allelesList, size=int(rootGenomeLength), replace=True, p=rootGenomeFrequencies)
         ref = "".join(refList)
+        refList = list(ref)
         return ref, refList
 
 
@@ -835,8 +839,11 @@ class GenomeTree_hierarchical:
         # print leaf entry to file
         if node.is_leaf():
             # first write the header then the sequence directly from the array
-            file.write(">" + node.name + "\n")# + (''.join(nRefList)) + "\n")
-            nRefList.tofile(file)
+            #file.write(">" + node.name + "\n")# + (''.join(nRefList)) + "\n")
+            #np.savetxt(file, nRefList,fmt='%s')
+            #nRefList.tofile(file)
+            file.write(">" + node.name + "\n"+''.join(nRefList) + "\n")
+            #file.write(">" + node.name + "\n" + np.char.join(nRefList,"") + "\n")
         # pass to children
         else:
             for c in node.children:
@@ -850,7 +857,7 @@ class GenomeTree_hierarchical:
     def write_genome(self, tree, output_path, output_file, refList):
         file = open(output_path + output_file + ".fasta", "w")
         # convert reference list to an array
-        refList = np.array(refList)
+        #refList = np.array(refList)
         self.writeGenome(tree, file, refList)
         file.close()
 

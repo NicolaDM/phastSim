@@ -13,8 +13,8 @@ import time
 # python2 compareSimulators.py --path /Users/demaio/Desktop/coronavirus/simulations/ --nLeaves 100 --categoryProbs 0.2 0.2 0.2 0.2 0.2 --categoryRates 0.01 0.1 0.2 0.5 1.0 --pyvolveSim --seqgenSim --indelibleSim
 
 parser = argparse.ArgumentParser(description='Compare simulators, in particular phastSim, seq-gen, indelible and pyvolve.')
-parser.add_argument('--path',default="", help='Path where to run simulations.')
-parser.add_argument('--reference',default="MN908947.3.fasta", help='File containing the reference genome to be used as root genome. To be found in the folder specified with --path. By default the reference is generated randomly.')
+parser.add_argument('--path',default="/Users/demaio/Desktop/coronavirus/simulations/", help='Path where to write simulation output.')
+parser.add_argument('--reference',default="/Users/demaio/Documents/GitHub/phastSim/phastSim/example/MN908947.3.fasta", help='File containing the reference genome to be used as root genome.')
 parser.add_argument("--nLeaves", help="Ignore tree file and simulate a random tree with the given number of leaves.", type=int, default=0)
 parser.add_argument("--replicates", help="Number of replicate simulations to run", type=int, default=1)
 parser.add_argument("--length", help="Length of the genome, if not read from file", type=int, default=29903)
@@ -66,13 +66,13 @@ hierarchy=not args.noHierarchy
 #collect reference
 ref=""
 if reference!="":
-	file=open(pathSimu+reference)
+	file=open(reference)
 	line=file.readline()
 	while line!="":
 		line=file.readline()
 		ref+=line.replace("\n","")
 	file.close()
-	print("\n Finished reading reference genome at "+pathSimu+reference+" with "+str(len(ref))+" bases.")
+	print("\n Finished reading reference genome at "+reference+" with "+str(len(ref))+" bases.")
 else:
 	print("random ancestor not implemente yet!")
 	exit()
@@ -165,37 +165,16 @@ for r in range(nReplicates):
 	start = time.time()
 	treeFile="simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+".tree"
 	treeFile2="simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_2.tree"
-	if nLeaves<=1:
-		#use dendropy - too slow
-		from dendropy.simulate import treesim
-		t = treesim.birth_death_tree(birth_rate=length, death_rate=0.0, num_total_tips=nLeaves)
-		tString=t.as_string(schema="newick")
-		tString=tString.split()[1]
-		tString=tString.replace(":0)",":1.0e-09)").replace(":0,",":1.0e-09,")
-		tString2="("+tString.replace(";","")+");"
-		tString3=branch_lengths_2_decimals(tString2.replace(";",""))
-	elif nLeaves<1:
-		#use ngesh - too slow
-		import ngesh
-		#print(ngesh.gen_tree.__doc__) 
-		tree = ngesh.gen_tree(length, 0.0, min_leaves=nLeaves, labels="enum",seed=seed+r)
-		tString=tree.write()
-		tString=tString.replace(")1",")")
-		#print(tString)
-		tString2=tString
-		tString3=branch_lengths_2_decimals(tString2.replace(";",""))
-		#print(tString3)
-		#exit()
-	else:
-		#use custom script - works well even for huge phylogenies
-		import random_tree
-		tree = random_tree.gen_tree(length, 0.0*float(length), min_leaves=nLeaves, labels="enum",seed=seed+r)
-		tString=tree.write()
-		tString=tString.replace(")1",")")
-		#tString=tString.replace(":0)",":1.0e-09)").replace(":0,",":1.0e-09,")
-		print(tString)
-		tString2=tString
-		tString3=branch_lengths_2_decimals(tString2.replace(";",""))
+
+	#use custom script - works well even for huge phylogenies
+	import random_tree
+	tree = random_tree.gen_tree(length, 0.0*float(length), min_leaves=nLeaves, labels="enum",seed=seed+r)
+	tString=tree.write()
+	tString=tString.replace(")1",")")
+	#tString=tString.replace(":0)",":1.0e-09)").replace(":0,",":1.0e-09,")
+	print(tString)
+	tString2=tString
+	tString3=branch_lengths_2_decimals(tString2.replace(";",""))
 
 	file=open(pathSimu+treeFile,"w")
 	file.write(tString+"\n")
@@ -214,7 +193,7 @@ for r in range(nReplicates):
 	print("Running phastSim")
 	start = time.time()
 	
-	stringRun="python3 /Users/demaio/Desktop/coronavirus/simulations/scripts/efficientSimuSARS2.py --path /Users/demaio/Desktop/coronavirus/simulations/  --seed "+str(seed+r)+" --scale "+str(scale)+" --treeFile "+treeFile+" --reference "+reference+" --outputFile simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+".txt"
+	stringRun="phastSimulate --outpath "+pathSimu+"  --seed "+str(seed+r)+" --scale "+str(scale)+" --treeFile "+pathSimu+treeFile+" --reference "+reference+" --outputFile simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+".txt"
 	#if createFasta:
 	#	stringRun+=" --createFasta "
 	if alpha>=0.000000001:
@@ -267,14 +246,15 @@ for r in range(nReplicates):
 		
 		stringRun="python2 /Users/demaio/Desktop/coronavirus/simulations/scripts/runPyvolve.py --path /Users/demaio/Desktop/coronavirus/simulations/  --seed "+str(seed+r)+" --scale "+str(scale)+" --treeFile "+treeFile2+" --outputFile simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_pyvolve.txt"
 		if alpha>=0.000000001 or invariable>=0.000000001:
-			print("I am not allowing continuoous rate variation in pyvolve!")
-		elif len(categoryProbs)>1:
-			stringRun+=" --categoryProbs "
-			for c in range(len(categoryProbs)):
-				stringRun+=" "+str(categoryProbs[c])
-			stringRun+=" --categoryRates "
-			for c in range(len(categoryProbs)):
-				stringRun+=" "+str(categoryRates[c])
+			print("I am not allowing continuous rate variation in pyvolve!")
+		else:
+			if len(categoryProbs)>1:
+				stringRun+=" --categoryProbs "
+				for c in range(len(categoryProbs)):
+					stringRun+=" "+str(categoryProbs[c])
+				stringRun+=" --categoryRates "
+				for c in range(len(categoryProbs)):
+					stringRun+=" "+str(categoryRates[c])
 			os.system(stringRun)
 			elapsedTime = time.time() - start
 			times2.append(elapsedTime)
