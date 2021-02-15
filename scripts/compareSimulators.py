@@ -367,9 +367,14 @@ print(times)
 
 if generatePlots:
 	
+	#import matplotlib.pyplot as plt
+	
 	import matplotlib.pyplot as plt
+	#import numpy as np
+	from matplotlib.patches import Polygon
 	
 	names=["tree generation","phastSim","phastSim+Fasta","pyvolve","SeqGen","INDELible-m1","INDELible-m2"]
+	colors=["blue","red","orange","green","purple","yellow","brown"]
 	times10=[[0.0013659000396728516, 0.0012090206146240234, 0.0013148784637451172, 0.0010118484497070312, 0.0013380050659179688, 0.002196073532104492, 0.0014619827270507812, 0.001085042953491211, 0.001199960708618164, 0.0013890266418457031], [1.3747148513793945, 1.3423030376434326, 1.3215079307556152, 1.3170280456542969, 1.3145039081573486, 1.3163139820098877, 1.3323869705200195, 1.3344120979309082, 1.399022102355957, 1.3535301685333252], [1.3641538619995117, 1.3581798076629639, 1.334787130355835, 1.3404159545898438, 1.3326139450073242, 1.3254010677337646, 1.3380720615386963, 1.3444411754608154, 1.3227300643920898, 1.3296558856964111], [10.451174020767212, 10.58082389831543, 10.541486978530884, 10.444769144058228, 10.375016927719116, 10.394562005996704, 10.366996049880981, 10.622323989868164, 10.495352983474731, 10.429331064224243], [0.03925800323486328, 0.032778024673461914, 0.033091068267822266, 0.03274106979370117, 0.036557912826538086, 0.032247066497802734, 0.03708791732788086, 0.041892051696777344, 0.038690805435180664, 0.035842180252075195], [0.21403002738952637, 0.21619105339050293, 0.21575593948364258, 0.21455693244934082, 0.2209010124206543, 0.221451997756958, 0.21570682525634766, 0.2141880989074707, 0.22292304039001465, 0.21918296813964844], [0.12611007690429688, 0.1258530616760254, 0.1236422061920166, 0.12346792221069336, 0.12584614753723145, 0.12546515464782715, 0.12303709983825684, 0.12221598625183105, 0.1220400333404541, 0.12607908248901367]]
 	times20=[[0.0024929046630859375, 0.0014770030975341797, 0.0023810863494873047, 0.0014848709106445312, 0.001817941665649414, 0.0016529560089111328, 0.0020999908447265625, 0.0015180110931396484, 0.0020749568939208984, 0.0017440319061279297], [1.645247220993042, 1.310811996459961, 1.3231310844421387, 1.3270468711853027, 1.3239338397979736, 1.3379931449890137, 1.3164989948272705, 1.3218259811401367, 1.3193409442901611, 1.5228931903839111], [1.679689884185791, 1.3187479972839355, 1.3616609573364258, 1.329289197921753, 1.346217155456543, 1.3264689445495605, 1.3758349418640137, 1.3410701751708984, 1.3292009830474854, 1.6160540580749512], [22.576815128326416, 22.07684302330017, 22.30865716934204, 21.877304792404175, 21.605812072753906, 21.84848117828369, 22.243227005004883, 22.178505897521973, 22.18565797805786, 23.35649800300598], [0.06273508071899414, 0.05921602249145508, 0.0638580322265625, 0.05792999267578125, 0.05753588676452637, 0.05878496170043945, 0.057292938232421875, 0.06512904167175293, 0.05781197547912598, 0.057282209396362305], [0.44101905822753906, 0.44517993927001953, 0.43025708198547363, 0.4448831081390381, 0.44520998001098633, 0.44223713874816895, 0.43360185623168945, 0.4268670082092285, 0.46094799041748047, 0.4530940055847168], [0.24215412139892578, 0.24007606506347656, 0.24377012252807617, 0.23820710182189941, 0.24094796180725098, 0.2389540672302246, 0.24043488502502441, 0.23656988143920898, 0.29044508934020996, 0.25960588455200195]]
 	times50=[[0.003216981887817383, 0.0038487911224365234, 0.0030329227447509766, 0.003144979476928711, 0.004025936126708984, 0.002969980239868164, 0.0034058094024658203, 0.002958059310913086, 0.023120880126953125, 0.02884507179260254], [1.2893130779266357, 1.6244549751281738, 1.486210823059082, 1.4786460399627686, 1.4211831092834473, 1.811263084411621, 1.376521110534668, 1.4128239154815674, 1.5160620212554932, 1.3880500793457031], [1.3925518989562988, 1.4420089721679688, 1.4690890312194824, 1.5120949745178223, 1.4923410415649414, 1.4661610126495361, 1.4662230014801025, 1.4426720142364502, 1.4030230045318604, 1.4014220237731934], [61.306437969207764, 63.28899002075195, 60.32176899909973, 61.62099599838257, 62.32091784477234, 60.96144986152649, 60.207597970962524, 59.269126892089844, 60.00672507286072, 59.49119710922241], [0.13117289543151855, 0.13464593887329102, 0.13071918487548828, 0.1415119171142578, 0.13554096221923828, 0.13779211044311523, 0.1376659870147705, 0.13895797729492188, 0.13930082321166992, 0.1320171356201172], [1.1521000862121582, 1.117422103881836, 1.1462361812591553, 1.1094839572906494, 1.1246919631958008, 1.1122980117797852, 1.109248161315918, 1.1435189247131348, 1.1563069820404053, 1.1218719482421875], [0.6041860580444336, 0.6159520149230957, 0.6443181037902832, 0.6238491535186768, 0.5989768505096436, 0.5900440216064453, 0.609623908996582, 0.5931220054626465, 0.6229169368743896, 0.600348949432373]]
@@ -387,51 +392,66 @@ if generatePlots:
 	times500000=[[41.40035009384155, 43.9114990234375, 55.79817795753479, 47.97320508956909, 54.219762086868286, 53.92414689064026, 46.42072582244873, 51.166882038116455, 45.05335998535156, 51.811765909194946], [54.970056772232056, 55.55358910560608, 56.28190588951111, 56.577943086624146, 59.569891929626465, 59.95699906349182, 65.13326716423035, 53.935949087142944, 52.92773199081421, 55.46649694442749], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
 	#times1000000=[]
 
-	nLeaves=[10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000]
+	#nLeaves=[10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000]
+	nLeaves=["10","20","50","100","200","500","1000","2000","5000","10^4","2x10^4","5x10^4","10^5","2x10^5","5x10^5"]
 	times=[times10,times20,times50,times100,times200,times500,times1000,times2000,times5000,times10000,times20000,times50000,times100000,times200000,times500000]
 	
 	
-	#BOXPlot, not barplot, idiot!
-	def barplot(valuesLists,axisLabels,plotFileName,labels,colors=[]):
-		values=valuesLists
-		values=[]
-		for k in range(len(axisLabels)):
-			values.append([])
-			for i in range(len(labels)):
-				values[k].append(valuesLists[i][k])
-		#		for j in range(4):
-		#			if j!=i:
-		#				values[k].append(valuesLists[k][i][j])
-		x = np.arange(len(labels))
-		#width = 0.35  # the width of the bars
-		width=0.8/len(axisLabels)
-		fig, ax = plt.subplots()
-		reacts=[]
-		for k in range(len(axisLabels)):
-			if len(axisLabels)%2==0:
-				if len(colors)==0:
-					reacts.append(ax.bar(x +k*width - (len(axisLabels)-1)*width/2, values[k], width, label=axisLabels[k]))
-				else:
-					reacts.append(ax.bar(x +k*width - (len(axisLabels)-1)*width/2, values[k], width, color=colors[k], label=axisLabels[k]))
-			else:
-				if len(colors)==0:
-					print(x +k*width -int(len(axisLabels)/2)*width)
-					print(values[k])
-					print(width)
-					print(axisLabels[k])
-					reacts.append(ax.bar(x +k*width -int(len(axisLabels)/2)*width, values[k], width, label=axisLabels[k]))
-				else:
-					reacts.append(ax.bar(x +k*width -int(len(axisLabels)/2)*width, values[k], width, color=colors[k], label=axisLabels[k]))
-		ax.set_xlabel('Number of leaves')
-		ax.set_xticks(x)
-		ax.set_xticklabels(labels)
-		ax.legend()
-		fig.tight_layout()
-		#plt.show()
+	#BOXPlot drawing
+	def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel):
+	
+		fig, ax1 = plt.subplots(figsize=(10, 6))
+		fig.canvas.set_window_title('Simulation Running times')
+		fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
+		num_boxes = len(valuesLists)*len(valuesLists[0])
+		
+		data=np.zeros((len(valuesLists)*len(valuesLists[0]),len(valuesLists[0][0])))
+		print((len(valuesLists)*len(valuesLists[0]),len(valuesLists[0][0])))
+		positions=[]
+		for i in range(len(valuesLists)):
+			for j in range(len(valuesLists[i])):
+				c=colors[j]
+				positions.append(i+(j-len(valuesLists[i])/2.0)*0.5/len(valuesLists[i]))
+				for k in range(len(valuesLists[i][j])):
+					data[i*len(valuesLists[0])+j][k]=valuesLists[i][j][k]
+					
+				plt.boxplot(data[i*len(valuesLists[0])+j], positions=[i+(j-len(valuesLists[i])/2.0)*0.5/len(valuesLists[i])], notch=False, patch_artist=True, widths=0.5/len(colors), manage_xticks=False, 
+				boxprops=dict(facecolor=c, color=c),
+				capprops=dict(color=c),
+				whiskerprops=dict(color=c),
+				medianprops=dict(color=c),
+				flierprops = dict(marker='o', markerfacecolor=c, markersize=1.5,
+                  linestyle='none', markeredgecolor=c)
+				)
+		
+		# Add a horizontal grid to the plot, but make it very light in color
+		# so we can use it for reading data values but not be distracting
+		ax1.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',   alpha=0.5)
+
+		# Hide these grid behind plot objects
+		ax1.set_axisbelow(True)
+		ax1.set_title('Comparison of Simulation Running times')
+		ax1.set_xlabel(xLabel)
+		ax1.set_ylabel('Time (seconds)')
+
+		# Set the axes ranges and axes labels
+		ax1.set_xlim(-0.7, len(valuesLists) -0.5)
+		top = 70
+		bottom = -1
+		ax1.set_ylim(bottom, top)
+		#ax1.set_xticklabels(labels, rotation=45, fontsize=8)
+		ax1.set_xticks(np.arange(len(valuesLists)))
+		ax1.set_xticklabels(labels, rotation=45, fontsize=11)
+
+		# Finally, add a basic legend
+		for i in range(len(colors)):
+			fig.text(0.10, 0.85-0.045*i, axisLabels[i], backgroundcolor=colors[i], color='black', weight='roman', size='medium')
+		
 		fig.savefig(plotFileName)
+		plt.close()
 
-
-	barplot(times,names,pathSimu+"barplot_times_general.pdf",nLeaves)
+	#generate boxplot of general running times
+	boxplot(times,names,pathSimu+"boxplot_times_general.pdf",nLeaves,colors,'Number of tips')
 
 exit()
 
