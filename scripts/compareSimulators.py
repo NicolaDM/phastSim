@@ -415,7 +415,7 @@ if generatePlots:
 	
 	
 	#BOXPlot drawing
-	def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel):
+	def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel,topPlot):
 	
 		fig, ax1 = plt.subplots(figsize=(10, 6))
 		fig.canvas.set_window_title('Simulation Running times')
@@ -431,14 +431,18 @@ if generatePlots:
 				positions.append(i+(j-len(valuesLists[i])/2.0)*0.5/len(valuesLists[i]))
 				for k in range(len(valuesLists[i][j])):
 					data[i*len(valuesLists[0])+j][k]=valuesLists[i][j][k]
-					
-				plt.boxplot(data[i*len(valuesLists[0])+j], positions=[i+(j-len(valuesLists[i])/2.0)*0.5/len(valuesLists[i])], notch=False, patch_artist=True, widths=0.5/len(colors), manage_xticks=False, 
-				boxprops=dict(facecolor=c, color=c),
-				capprops=dict(color=c),
-				whiskerprops=dict(color=c),
-				medianprops=dict(color=c),
-				flierprops = dict(marker='o', markerfacecolor=c, markersize=1.5,
-                  linestyle='none', markeredgecolor=c)
+				position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
+				#if len(valuesLists[i])%2==0:
+				#	position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
+				#else:
+				#	position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
+				plt.boxplot(data[i*len(valuesLists[0])+j], positions=position, notch=False, patch_artist=True, widths=0.5/len(colors), manage_xticks=False, 
+					boxprops=dict(facecolor=c, color=c),
+					capprops=dict(color=c),
+					whiskerprops=dict(color=c),
+					medianprops=dict(color=c),
+					flierprops = dict(marker='o', markerfacecolor=c, markersize=1.5,
+					  linestyle='none', markeredgecolor=c)
 				)
 		
 		# Add a horizontal grid to the plot, but make it very light in color
@@ -453,7 +457,7 @@ if generatePlots:
 
 		# Set the axes ranges and axes labels
 		ax1.set_xlim(-0.7, len(valuesLists) -0.5)
-		top = 70
+		top = topPlot
 		bottom = -1
 		ax1.set_ylim(bottom, top)
 		#ax1.set_xticklabels(labels, rotation=45, fontsize=8)
@@ -468,7 +472,7 @@ if generatePlots:
 		plt.close()
 
 	#generate boxplot of general running times
-	boxplot(times,names,pathSimu+"boxplot_times_general.pdf",nLeaves,colors,'Number of tips')
+	boxplot(times,names,pathSimu+"boxplot_times_general.pdf",nLeaves,colors,'Number of tips',70)
 
 
 
@@ -481,11 +485,12 @@ if generatePlots:
 	timeBac1000=[[0.05812692642211914, 0.1542520523071289, 0.060903072357177734, 0.06916284561157227, 0.06678295135498047, 0.06496405601501465, 0.05615997314453125, 0.06887292861938477, 0.060105085372924805, 0.057878971099853516], [177.48807787895203, 182.96084809303284, 172.49677300453186, 175.87213397026062, 173.62093901634216, 172.60746812820435, 173.63555788993835, 173.0993959903717, 173.5166938304901, 175.74975085258484], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [13.144881010055542, 14.442451000213623, 13.33045482635498, 14.297406911849976, 12.883018970489502, 12.911453008651733, 12.940874099731445, 12.909605979919434, 12.800656080245972, 12.888622999191284], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [371.2199020385742, 368.92077112197876, 366.3824338912964, 373.98392486572266, 340.9463691711426, 340.8884289264679, 348.04884099960327, 340.19118785858154, 340.25771379470825, 342.55591678619385], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
 	timeBac10000=[[0.5482289791107178, 0.5563790798187256, 0.6169149875640869, 0.634497880935669, 0.6346278190612793, 0.6516609191894531, 0.6554958820343018, 0.48153090476989746, 0.672562837600708, 0.6116149425506592], [169.9283730983734, 174.08655405044556, 175.7704598903656, 173.69724893569946, 175.6370129585266, 175.27587485313416, 172.99442100524902, 176.0433931350708, 175.20786309242249, 172.27963709831238], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [14.153738021850586, 14.174522876739502, 14.369817018508911, 14.407010078430176, 14.171308040618896, 14.240686178207397, 14.342763900756836, 14.443896055221558, 14.38150691986084, 14.392709016799927], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
 	timeBac100000=[[7.1389319896698, 7.664942979812622, 8.775321960449219, 7.957852125167847, 8.219660997390747, 8.681435823440552, 7.813961982727051, 9.513015031814575, 8.392756938934326, 8.492002010345459], [183.45800304412842, 181.6222870349884, 179.1631760597229, 186.37382698059082, 180.89060497283936, 179.808434009552, 187.61126399040222, 180.37693405151367, 178.5731999874115, 180.19063591957092], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [27.191282987594604, 26.84230399131775, 27.70342516899109, 29.843647003173828, 28.46603488922119, 28.659116983413696, 29.28634786605835, 28.485222101211548, 29.228497982025146, 28.772555112838745], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
+	timeBac1000000=[[81.62878894805908, 89.62794303894043, 106.14013600349426, 110.6383581161499, 96.30954599380493, 97.43770599365234, 110.09148812294006, 110.74342083930969, 107.95002603530884, 112.01782989501953], [279.7848780155182, 287.42469906806946, 283.3451671600342, 279.34494400024414, 281.20244097709656, 281.4417998790741, 286.5778498649597, 283.95273303985596, 298.03560304641724, 279.8306269645691], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [174.9824252128601, 172.16432189941406, 170.83757781982422, 168.054692029953, 167.96446204185486, 171.40612292289734, 176.20980095863342, 165.83070993423462, 179.4578800201416, 172.5215358734131], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
 	
-	nLeaves=["100","1000","10^4","10^5"]
-	times=[[timeBac100[1],[timeBac100[3],[timeBac1000[1],[timeBac1000[3],[timeBac1000[5]],[timeBac10000[1],[timeBac10000[3],[timeBac10000[5]],[timeBac100000[1],[timeBac100000[3],[timeBac100000[5]]]
+	nLeaves=["100","1000","10^4","10^5","10^6"]
+	times=[[timeBac100[1],timeBac100[3],timeBac100[3]],[timeBac1000[1],timeBac1000[3],timeBac1000[5]],[timeBac10000[1],timeBac10000[3],timeBac10000[5]],[timeBac100000[1],timeBac100000[3],timeBac100000[5]],[timeBac1000000[1],timeBac1000000[3],timeBac1000000[5]]]
 	
-	boxplot(times,names,pathSimu+"boxplot_times_bacteria.pdf",nLeaves,colors,'Number of tips')
+	boxplot(times,names,pathSimu+"boxplot_times_bacteria.pdf",nLeaves,colors,'Number of tips',400)
 
 
 
