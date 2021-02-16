@@ -69,13 +69,16 @@ print("Time for reading tree with ETE3: " + str(time1))
 	
 
 # save information about the categories of each site on a file
-file = open(args.outpath + args.outputFile + ".info", "w")
-if args.codon:
-	file.write("pos\t"+"omega\t"+"cat1\t"+"hyperCat1\t"+"hyperAlleleFrom1\t"+"hyperAlleleTo1\t"+
-			   "cat2\t"+"hyperCat2\t"+"hyperAlleleFrom2\t"+"hyperAlleleTo2\t"+"cat3\t"+"hyperCat3\t"
-			   +"hyperAlleleFrom3\t"+"hyperAlleleTo3\n")
+if args.createInfo:
+	file = open(args.outpath + args.outputFile + ".info", "w")
+	if args.codon:
+		file.write("pos\t"+"omega\t"+"cat1\t"+"hyperCat1\t"+"hyperAlleleFrom1\t"+"hyperAlleleTo1\t"+
+				   "cat2\t"+"hyperCat2\t"+"hyperAlleleFrom2\t"+"hyperAlleleTo2\t"+"cat3\t"+"hyperCat3\t"
+				   +"hyperAlleleFrom3\t"+"hyperAlleleTo3\n")
+	else:
+		file.write("pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo\n")
 else:
-	file.write("pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo\n")
+	file=None
 
 
 # Hierarchical approach (DIVIDE ET IMPERA ALONG THE GENOME),
@@ -104,11 +107,20 @@ if hierarchy:
 		file=file,
 		verbose=sim_run.args.verbose)
 
+	time2 = time.time() - start
+	print("Total time after initializing: " + str(time2))
+	
 	# populate the GenomeTree
 	genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
+	
+	time2 = time.time() - start
+	print("Total time after populating tree: " + str(time2))
 
 	# normalize all rates
 	genome_tree.normalize_rates(scale=sim_run.args.scale)
+	
+	time2 = time.time() - start
+	print("Total time after normalizing: " + str(time2))
 
 	time2 = time.time() - start
 	print("Total time after preparing for simulations: " + str(time2))

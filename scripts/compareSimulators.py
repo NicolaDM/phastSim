@@ -36,6 +36,7 @@ parser.add_argument("--seqgenSim", help="run simulations using seqgen for compar
 parser.add_argument("--indelibleSim", help="run simulations using indelible for comparison", action="store_true")
 parser.add_argument("--indelibleSim2", help="run simulations using indelible method 2 for comparison", action="store_true")
 parser.add_argument("--createFasta", help="also run phastSim with fasta file generation.", action="store_true")
+parser.add_argument("--phastSim", help="Run standard phastSim with hierarchical approach.", action="store_true")
 parser.add_argument("--generatePlots", help="Generate plots from previous simulation runs", action="store_true")
 args = parser.parse_args()
 
@@ -64,6 +65,7 @@ indelibleSim=args.indelibleSim
 indelibleSim2=args.indelibleSim2
 createFasta=args.createFasta
 generatePlots=args.generatePlots
+phastSim=args.phastSim
 
 hierarchy=not args.noHierarchy
 
@@ -94,6 +96,8 @@ if codon:
 	fileRef.write(">reference\n"+ref+"\n")
 	fileRef.close()
 	reference=reference+"_new.fa"
+	
+length=len(ref)
 	
 
 #define the mutation matrix
@@ -162,7 +166,7 @@ def branch_lengths_2_decimals(str_newick_tree):
     return new_tree
 	
 
-times=[[],[],[],[],[],[],[],]
+times=[[],[],[],[],[],[],[],[]]
 for r in range(nReplicates):
 	times2=[]
 	#simulate tree
@@ -176,7 +180,7 @@ for r in range(nReplicates):
 	tString=tree.write()
 	tString=tString.replace(")1",")")
 	#tString=tString.replace(":0)",":1.0e-09)").replace(":0,",":1.0e-09,")
-	print(tString)
+	#print(tString)
 	tString2=tString
 	tString3=branch_lengths_2_decimals(tString2.replace(";",""))
 
@@ -223,22 +227,35 @@ for r in range(nReplicates):
 			stringRun+=" --omegaCategoryRates "
 			for c in range(len(omegaCategoryRates)):
 				stringRun+=" "+str(omegaCategoryRates[c])
-	os.system(stringRun)
+	if phastSim:
+		os.system(stringRun+" >/dev/null")
 	
-	time2 = time.time() - start
-	times[1].append(time2)
-	#times2.append(time2)
-	print("Total time after simulating sequence evolution along tree with phastSim: "+str(time2))
+		time2 = time.time() - start
+		times[1].append(time2)
+		#times2.append(time2)
+		print("Total time after simulating sequence evolution along tree with phastSim: "+str(time2))
+	else:
+		times[1].append("NaN")
 	
 	if createFasta:
 		start = time.time()
-		os.system(stringRun+" --createFasta ")
+		os.system(stringRun+" --createFasta "+" >/dev/null")
 		time2 = time.time() - start
 		#times2.append(time2)
 		times[2].append(time2)
 		print("Total time after simulating sequence evolution along tree with phastSim and writing fasta file: "+str(time2))
 	else:
 		times[2].append("NaN")
+		
+	if not hierarchy:
+		start = time.time()
+		os.system(stringRun+" --noHierarchy "+" >/dev/null")
+		time2 = time.time() - start
+		#times2.append(time2)
+		times[3].append(time2)
+		print("Total time after simulating sequence evolution along tree with phastSim and no multilayer genome tree: "+str(time2))
+	else:
+		times[3].append("NaN")
 	
 	#run pyvolve
 	#Run simulations using pyvolve if requested
@@ -269,11 +286,11 @@ for r in range(nReplicates):
 			os.system(stringRun)
 			time2 = time.time() - start
 			#times2.append(elapsedTime)
-			times[3].append(time2)
+			times[4].append(time2)
 			print("Time for simulating with pyvolve: "+str(time2))
 	else:
 		#times2.append("NaN")
-		times[3].append("NaN")
+		times[4].append("NaN")
 
 
 
@@ -290,14 +307,14 @@ for r in range(nReplicates):
 		if invariable>=0.000000001:
 			categoryString+=(" -i "+str(invariable)+" ")
 		stringRun="/Applications/Seq-Gen-1.3.4/source/seq-gen -l "+str(length)+" -s "+str(scale)+" -m GTR -f 0.3 0.2 0.2 0.3 -r "+str(mutMatrix[0][1]/mutMatrix[2][3])+" "+str(mutMatrix[0][2]/mutMatrix[2][3])+" "+str(mutMatrix[0][3]/mutMatrix[2][3])+" "+str(mutMatrix[1][2]/mutMatrix[2][3])+" "+str(mutMatrix[1][3]/mutMatrix[2][3])+" 1.0 "+categoryString+" -z "+str(seed+r)+" "+pathSimu+treeFile+" > "+pathSimu+"simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_seqgenOutput.txt"
-		os.system(stringRun)
+		os.system(stringRun+" &>/dev/null")
 		time2 = time.time() - start
 		#times2.append(time2)
-		times[4].append(time2)
+		times[5].append(time2)
 		print("Total time after simulating sequence evolution along tree with seqgen: "+str(time2))
 	else:
 		#times2.append("NaN")
-		times[4].append("NaN")
+		times[5].append("NaN")
 	
 	
 	#run simulations with indelible
@@ -323,11 +340,11 @@ for r in range(nReplicates):
 		
 		time2 = time.time() - start
 		#times2.append(time2)
-		times[5].append(time2)
+		times[6].append(time2)
 		print("Total time after simulating sequence evolution along tree with indelible method 1: "+str(time2))
 	else:
 		#times2.append("NaN")
-		times[5].append("NaN")
+		times[6].append("NaN")
 		
 	if indelibleSim2:
 		#now version with full Gillespie
@@ -352,11 +369,11 @@ for r in range(nReplicates):
 		
 		time2 = time.time() - start
 		#times2.append(time2)
-		times[6].append(time2)
+		times[7].append(time2)
 		print("Total time after simulating sequence evolution along tree with indelible method 2: "+str(time2))
 	else:
 		#times2.append("NaN")
-		times[6].append("NaN")
+		times[7].append("NaN")
 		
 	
 	#times.append(times2)
@@ -453,20 +470,27 @@ if generatePlots:
 	#generate boxplot of general running times
 	boxplot(times,names,pathSimu+"boxplot_times_general.pdf",nLeaves,colors,'Number of tips')
 
+
+
+
+	#generate boxplot for bacterial simulations
+	names=["phastSim","phastSim vanilla","SeqGen"]
+	colors=["red","orange","purple"]
+	
+	timeBac100=[[0.006983041763305664, 0.011324882507324219, 0.009025096893310547, 0.011911869049072266, 0.012537002563476562, 0.0067310333251953125, 0.012540102005004883, 0.005934953689575195, 0.01127314567565918, 0.005726814270019531], [174.96500897407532, 174.36507487297058, 175.25401997566223, 175.28451919555664, 171.74607491493225, 171.94691801071167, 173.5567581653595, 172.69711184501648, 191.58557987213135, 175.2613389492035], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [13.424217939376831, 14.320651054382324, 14.301777839660645, 14.55683422088623, 14.60419511795044, 14.411143064498901, 14.294666051864624, 13.91373586654663, 13.604182958602905, 13.315825939178467], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [34.542505979537964, 37.61758017539978, 37.153862953186035, 37.15251898765564, 36.598602056503296, 36.699177980422974, 36.6919310092926, 36.52304816246033, 36.54633593559265, 34.995906829833984], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
+	timeBac1000=[[0.05812692642211914, 0.1542520523071289, 0.060903072357177734, 0.06916284561157227, 0.06678295135498047, 0.06496405601501465, 0.05615997314453125, 0.06887292861938477, 0.060105085372924805, 0.057878971099853516], [177.48807787895203, 182.96084809303284, 172.49677300453186, 175.87213397026062, 173.62093901634216, 172.60746812820435, 173.63555788993835, 173.0993959903717, 173.5166938304901, 175.74975085258484], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [13.144881010055542, 14.442451000213623, 13.33045482635498, 14.297406911849976, 12.883018970489502, 12.911453008651733, 12.940874099731445, 12.909605979919434, 12.800656080245972, 12.888622999191284], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [371.2199020385742, 368.92077112197876, 366.3824338912964, 373.98392486572266, 340.9463691711426, 340.8884289264679, 348.04884099960327, 340.19118785858154, 340.25771379470825, 342.55591678619385], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
+	timeBac10000=[[0.5482289791107178, 0.5563790798187256, 0.6169149875640869, 0.634497880935669, 0.6346278190612793, 0.6516609191894531, 0.6554958820343018, 0.48153090476989746, 0.672562837600708, 0.6116149425506592], [169.9283730983734, 174.08655405044556, 175.7704598903656, 173.69724893569946, 175.6370129585266, 175.27587485313416, 172.99442100524902, 176.0433931350708, 175.20786309242249, 172.27963709831238], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [14.153738021850586, 14.174522876739502, 14.369817018508911, 14.407010078430176, 14.171308040618896, 14.240686178207397, 14.342763900756836, 14.443896055221558, 14.38150691986084, 14.392709016799927], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
+	timeBac100000=[[7.1389319896698, 7.664942979812622, 8.775321960449219, 7.957852125167847, 8.219660997390747, 8.681435823440552, 7.813961982727051, 9.513015031814575, 8.392756938934326, 8.492002010345459], [183.45800304412842, 181.6222870349884, 179.1631760597229, 186.37382698059082, 180.89060497283936, 179.808434009552, 187.61126399040222, 180.37693405151367, 178.5731999874115, 180.19063591957092], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [27.191282987594604, 26.84230399131775, 27.70342516899109, 29.843647003173828, 28.46603488922119, 28.659116983413696, 29.28634786605835, 28.485222101211548, 29.228497982025146, 28.772555112838745], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
+	
+	nLeaves=["100","1000","10^4","10^5"]
+	times=[[timeBac100[1],[timeBac100[3],[timeBac1000[1],[timeBac1000[3],[timeBac1000[5]],[timeBac10000[1],[timeBac10000[3],[timeBac10000[5]],[timeBac100000[1],[timeBac100000[3],[timeBac100000[5]]]
+	
+	boxplot(times,names,pathSimu+"boxplot_times_bacteria.pdf",nLeaves,colors,'Number of tips')
+
+
+
+
 exit()
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
