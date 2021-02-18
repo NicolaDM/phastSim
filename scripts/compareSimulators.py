@@ -67,7 +67,8 @@ createFasta=args.createFasta
 generatePlots=args.generatePlots
 phastSim=args.phastSim
 
-hierarchy=not args.noHierarchy
+noHierarchy=args.noHierarchy
+#hierarchy=not args.noHierarchy
 
 #collect reference
 ref=""
@@ -92,7 +93,7 @@ if codon:
 		newRef+=ref[g[0]+2:g[1]-3]
 	ref=newRef
 	print("new Ref length: "+str(len(ref)))
-	fileRef=open(pathSimu+reference+"_new.fa","w")
+	fileRef=open(reference+"_new.fa","w")
 	fileRef.write(">reference\n"+ref+"\n")
 	fileRef.close()
 	reference=reference+"_new.fa"
@@ -165,6 +166,10 @@ def branch_lengths_2_decimals(str_newick_tree):
     new_tree = new_tree.strip('\'').strip('\"').strip('\'') + ";"
     return new_tree
 	
+def rescaleTree(node,scale):
+	node.dist*=scale
+	for c in node.get_children():
+		rescaleTree(c,scale)
 
 times=[[],[],[],[],[],[],[],[]]
 for r in range(nReplicates):
@@ -177,6 +182,7 @@ for r in range(nReplicates):
 	#use custom script - works well even for huge phylogenies
 	import random_tree
 	tree = random_tree.gen_tree(length, 0.0*float(length), min_leaves=nLeaves, labels="enum",seed=seed+r)
+	rescaleTree(tree,scale)
 	tString=tree.write()
 	tString=tString.replace(")1",")")
 	#tString=tString.replace(":0)",":1.0e-09)").replace(":0,",":1.0e-09,")
@@ -202,7 +208,7 @@ for r in range(nReplicates):
 	print("Running phastSim")
 	start = time.time()
 	
-	stringRun="phastSimulate --outpath "+pathSimu+"  --seed "+str(seed+r)+" --scale "+str(scale)+" --treeFile "+pathSimu+treeFile+" --reference "+reference+" --outputFile simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+".txt"
+	stringRun="phastSimulate --outpath "+pathSimu+"  --seed "+str(seed+r)+" --treeFile "+pathSimu+treeFile+" --reference "+reference+" --outputFile simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+".txt" # --scale "+str(scale)+"
 	#if createFasta:
 	#	stringRun+=" --createFasta "
 	if alpha>=0.000000001:
@@ -247,7 +253,7 @@ for r in range(nReplicates):
 	else:
 		times[2].append("NaN")
 		
-	if not hierarchy:
+	if noHierarchy:
 		start = time.time()
 		os.system(stringRun+" --noHierarchy "+" >/dev/null")
 		time2 = time.time() - start
@@ -306,8 +312,8 @@ for r in range(nReplicates):
 			categoryString=" "
 		if invariable>=0.000000001:
 			categoryString+=(" -i "+str(invariable)+" ")
-		stringRun="/Applications/Seq-Gen-1.3.4/source/seq-gen -l "+str(length)+" -s "+str(scale)+" -m GTR -f 0.3 0.2 0.2 0.3 -r "+str(mutMatrix[0][1]/mutMatrix[2][3])+" "+str(mutMatrix[0][2]/mutMatrix[2][3])+" "+str(mutMatrix[0][3]/mutMatrix[2][3])+" "+str(mutMatrix[1][2]/mutMatrix[2][3])+" "+str(mutMatrix[1][3]/mutMatrix[2][3])+" 1.0 "+categoryString+" -z "+str(seed+r)+" "+pathSimu+treeFile+" > "+pathSimu+"simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_seqgenOutput.txt"
-		os.system(stringRun+" &>/dev/null")
+		stringRun="/Applications/Seq-Gen-1.3.4/source/seq-gen -l "+str(length)+" -m GTR -f 0.3 0.2 0.2 0.3 -r "+str(mutMatrix[0][1]/mutMatrix[2][3])+" "+str(mutMatrix[0][2]/mutMatrix[2][3])+" "+str(mutMatrix[0][3]/mutMatrix[2][3])+" "+str(mutMatrix[1][2]/mutMatrix[2][3])+" "+str(mutMatrix[1][3]/mutMatrix[2][3])+" 1.0 "+categoryString+" -z "+str(seed+r)+" "+pathSimu+treeFile+" > "+pathSimu+"simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_seqgenOutput.txt" # -s "+str(scale)+"
+		os.system(stringRun+" ") #&>/dev/null
 		time2 = time.time() - start
 		#times2.append(time2)
 		times[5].append(time2)
@@ -323,17 +329,31 @@ for r in range(nReplicates):
 		start = time.time()
 		
 		file=open(pathSimu+"control.txt","w")
-		file.write("[TYPE] NUCLEOTIDE 1\n")
-		file.write("[MODEL]    modelname\n")
-		file.write("  [submodel]     UNREST "+str(mutMatrix[3][1]/mutMatrix[2][0])+" "+str(mutMatrix[3][0]/mutMatrix[2][0])+" "+str(mutMatrix[3][2]/mutMatrix[2][0])+" "+str(mutMatrix[1][3]/mutMatrix[2][0])+" "+str(mutMatrix[1][0]/mutMatrix[2][0])+" "+str(mutMatrix[1][2]/mutMatrix[2][0])+" "+str(mutMatrix[0][3]/mutMatrix[2][0])+" "+str(mutMatrix[0][1]/mutMatrix[2][0])+" "+str(mutMatrix[0][2]/mutMatrix[2][0])+" "+str(mutMatrix[2][3]/mutMatrix[2][0])+" "+str(mutMatrix[2][1]/mutMatrix[2][0])+"  \n")
-		file.write("  [statefreq] 0.3 0.2 0.2 0.3 \n")
-		if alpha>=0.000000001:
-			file.write("  [rates] "+str(invariable)+" "+str(alpha)+" 0 \n")
-		elif len(categoryProbs)>1:
-			file.write("  [rates] "+str(invariable)+" 1 "+str(len(categoryProbs))+" \n")
-		file.write("[TREE] treename  "+tString3+" \n")
-		file.write("[PARTITIONS] partitionname [treename modelname "+str(length)+"]  \n")
-		file.write("[EVOLVE] partitionname 1 simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_indelibleOutput.txt \n")
+		if codon:
+			file.write("[TYPE] CODON 1\n")
+			file.write("[MODEL]    modelname\n")
+			file.write("  [submodel]  2.0 ")
+			for c in range(len(omegaCategoryProbs)-1):
+				file.write(" "+str(omegaCategoryProbs[c]))
+			for c in range(len(omegaCategoryRates)):
+				file.write(" "+str(omegaCategoryRates[c]))
+			file.write("  \n")
+			
+			file.write("[TREE] treename  "+tString3+" \n")
+			file.write("[PARTITIONS] partitionname [treename modelname "+str(int(length/3))+"]  \n")
+			file.write("[EVOLVE] partitionname 1 simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_codon_indelibleOutput.txt \n")
+		else:
+			file.write("[TYPE] NUCLEOTIDE 1\n")
+			file.write("[MODEL]    modelname\n")
+			file.write("  [submodel]     UNREST "+str(mutMatrix[3][1]/mutMatrix[2][0])+" "+str(mutMatrix[3][0]/mutMatrix[2][0])+" "+str(mutMatrix[3][2]/mutMatrix[2][0])+" "+str(mutMatrix[1][3]/mutMatrix[2][0])+" "+str(mutMatrix[1][0]/mutMatrix[2][0])+" "+str(mutMatrix[1][2]/mutMatrix[2][0])+" "+str(mutMatrix[0][3]/mutMatrix[2][0])+" "+str(mutMatrix[0][1]/mutMatrix[2][0])+" "+str(mutMatrix[0][2]/mutMatrix[2][0])+" "+str(mutMatrix[2][3]/mutMatrix[2][0])+" "+str(mutMatrix[2][1]/mutMatrix[2][0])+"  \n")
+			file.write("  [statefreq] 0.3 0.2 0.2 0.3 \n")
+			if alpha>=0.000000001:
+				file.write("  [rates] "+str(invariable)+" "+str(alpha)+" 0 \n")
+			elif len(categoryProbs)>1:
+				file.write("  [rates] "+str(invariable)+" 1 "+str(len(categoryProbs))+" \n")
+			file.write("[TREE] treename  "+tString3+" \n")
+			file.write("[PARTITIONS] partitionname [treename modelname "+str(length)+"]  \n")
+			file.write("[EVOLVE] partitionname 1 simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_indelibleOutput.txt \n")
 		file.close()
 
 		os.system("cd "+pathSimu+" ; "+"/Users/demaio/Desktop/INDELibleV1.03/bin/indelible ")
@@ -352,17 +372,31 @@ for r in range(nReplicates):
 		start = time.time()
 		
 		file=open(pathSimu+"control.txt","w")
-		file.write("[TYPE] NUCLEOTIDE 2\n")
-		file.write("[MODEL]    modelname\n")
-		file.write("  [submodel]     UNREST "+str(mutMatrix[3][1]/mutMatrix[2][0])+" "+str(mutMatrix[3][0]/mutMatrix[2][0])+" "+str(mutMatrix[3][2]/mutMatrix[2][0])+" "+str(mutMatrix[1][3]/mutMatrix[2][0])+" "+str(mutMatrix[1][0]/mutMatrix[2][0])+" "+str(mutMatrix[1][2]/mutMatrix[2][0])+" "+str(mutMatrix[0][3]/mutMatrix[2][0])+" "+str(mutMatrix[0][1]/mutMatrix[2][0])+" "+str(mutMatrix[0][2]/mutMatrix[2][0])+" "+str(mutMatrix[2][3]/mutMatrix[2][0])+" "+str(mutMatrix[2][1]/mutMatrix[2][0])+"  \n")
-		file.write("  [statefreq] 0.3 0.2 0.2 0.3 \n")
-		if alpha>=0.000000001:
-			file.write("  [rates] "+str(invariable)+" "+str(alpha)+" 0 \n")
-		elif len(categoryProbs)>1:
-			file.write("  [rates] "+str(invariable)+" 1 "+str(len(categoryProbs))+" \n")
-		file.write("[TREE] treename  "+tString3+" \n")
-		file.write("[PARTITIONS] partitionname [treename modelname "+str(length)+"]  \n")
-		file.write("[EVOLVE] partitionname 1 simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_indelible2Output.txt \n")
+		if codon:
+			file.write("[TYPE] CODON 2\n")
+			file.write("[MODEL]    modelname\n")
+			file.write("  [submodel]  2.0 ")
+			for c in range(len(omegaCategoryProbs)-1):
+				file.write(" "+str(omegaCategoryProbs[c]))
+			for c in range(len(omegaCategoryRates)):
+				file.write(" "+str(omegaCategoryRates[c]))
+			file.write("  \n")
+			
+			file.write("[TREE] treename  "+tString3+" \n")
+			file.write("[PARTITIONS] partitionname [treename modelname "+str(int(length/3))+"]  \n")
+			file.write("[EVOLVE] partitionname 1 simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_codon_indelible2Output.txt \n")
+		else:
+			file.write("[TYPE] NUCLEOTIDE 2\n")
+			file.write("[MODEL]    modelname\n")
+			file.write("  [submodel]     UNREST "+str(mutMatrix[3][1]/mutMatrix[2][0])+" "+str(mutMatrix[3][0]/mutMatrix[2][0])+" "+str(mutMatrix[3][2]/mutMatrix[2][0])+" "+str(mutMatrix[1][3]/mutMatrix[2][0])+" "+str(mutMatrix[1][0]/mutMatrix[2][0])+" "+str(mutMatrix[1][2]/mutMatrix[2][0])+" "+str(mutMatrix[0][3]/mutMatrix[2][0])+" "+str(mutMatrix[0][1]/mutMatrix[2][0])+" "+str(mutMatrix[0][2]/mutMatrix[2][0])+" "+str(mutMatrix[2][3]/mutMatrix[2][0])+" "+str(mutMatrix[2][1]/mutMatrix[2][0])+"  \n")
+			file.write("  [statefreq] 0.3 0.2 0.2 0.3 \n")
+			if alpha>=0.000000001:
+				file.write("  [rates] "+str(invariable)+" "+str(alpha)+" 0 \n")
+			elif len(categoryProbs)>1:
+				file.write("  [rates] "+str(invariable)+" 1 "+str(len(categoryProbs))+" \n")
+			file.write("[TREE] treename  "+tString3+" \n")
+			file.write("[PARTITIONS] partitionname [treename modelname "+str(length)+"]  \n")
+			file.write("[EVOLVE] partitionname 1 simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_indelible2Output.txt \n")
 		file.close()
 
 		os.system("cd "+pathSimu+" ; "+"/Users/demaio/Desktop/INDELibleV1.03/bin/indelible ")
@@ -415,7 +449,7 @@ if generatePlots:
 	
 	
 	#BOXPlot drawing
-	def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel,topPlot):
+	def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel,topPlot,degreeSkew=45):
 	
 		fig, ax1 = plt.subplots(figsize=(10, 6))
 		fig.canvas.set_window_title('Simulation Running times')
@@ -430,6 +464,9 @@ if generatePlots:
 				c=colors[j]
 				positions.append(i+(j-len(valuesLists[i])/2.0)*0.5/len(valuesLists[i]))
 				for k in range(len(valuesLists[i][j])):
+					#print("")
+					#print(valuesLists[i][j][k])
+					#print(data[i*len(valuesLists[0])+j][k])
 					data[i*len(valuesLists[0])+j][k]=valuesLists[i][j][k]
 				position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
 				#if len(valuesLists[i])%2==0:
@@ -462,7 +499,7 @@ if generatePlots:
 		ax1.set_ylim(bottom, top)
 		#ax1.set_xticklabels(labels, rotation=45, fontsize=8)
 		ax1.set_xticks(np.arange(len(valuesLists)))
-		ax1.set_xticklabels(labels, rotation=45, fontsize=11)
+		ax1.set_xticklabels(labels, rotation=degreeSkew, fontsize=11)
 
 		# Finally, add a basic legend
 		for i in range(len(colors)):
@@ -492,9 +529,70 @@ if generatePlots:
 	
 	boxplot(times,names,pathSimu+"boxplot_times_bacteria.pdf",nLeaves,colors,'Number of tips',400)
 
+	
+	
+	
+	
+	#generate boxplot for the effects of evolutionary models (rate variation, codon model, etc)
+	#Indelible m1 10 tips, indelible m2 100 tips, seq-gen 1000 tips, phastSim 100,000 tips
+	#No variation, 10 site classes, continuous distribution, codon model, codon model with 10 site classes, codon model with continuous distributions. 
+	INDELible10=[0.2225949764251709, 0.2190871238708496, 0.21699094772338867, 0.22150301933288574, 0.2256309986114502, 0.22266411781311035, 0.22504186630249023, 0.21621108055114746, 0.22166180610656738, 0.22487497329711914]
+	INDELible10_10cat=[0.23387789726257324, 0.22591495513916016, 0.22251391410827637, 0.23491692543029785, 0.2268209457397461, 0.22698307037353516, 0.22743487358093262, 0.22669291496276855, 0.223466157913208, 0.22720599174499512]
+	INDELible10_alpha=[6.374353885650635, 6.485472917556763, 6.457162141799927, 6.532535076141357, 6.484618902206421, 6.542191028594971, 6.585536956787109, 7.222656965255737, 6.829970121383667, 6.700471878051758]
+	INDELible10_codon=[0.20548510551452637, 0.20304203033447266, 0.20437192916870117, 0.21530485153198242, 0.2131330966949463, 0.20339107513427734, 0.2080841064453125, 0.21094799041748047, 0.20357298851013184, 0.2106781005859375]
+	INDELible10_codon_10cat=[0.7385458946228027, 0.746147871017456, 0.7383320331573486, 0.7351891994476318, 0.7411129474639893, 0.7182350158691406, 0.7311639785766602, 0.7352509498596191, 0.7086069583892822, 0.7333619594573975]
+	
+	indelible2_100=[1.178359031677246, 1.162600040435791, 1.1259591579437256, 1.118901014328003, 1.132032871246338, 1.1725618839263916, 1.1374468803405762, 1.1177160739898682, 1.1428818702697754, 1.1853229999542236]
+	indelible2_100_10cat=[5.693902969360352, 5.679260969161987, 5.7287890911102295, 5.680241823196411, 5.6857030391693115, 5.7029969692230225, 5.665284872055054, 5.681509971618652, 5.681549072265625, 5.8491740226745605]
+	indelible2_100_alpha=[1.1788570880889893, 1.1999309062957764, 1.1450579166412354, 1.139327049255371, 1.1485190391540527, 1.1926980018615723, 1.1499888896942139, 1.1295068264007568, 1.1256649494171143, 1.197829008102417]
+	indelible2_100_codon=[0.43164706230163574, 0.4278898239135742, 0.426832914352417, 0.40623998641967773, 0.40640997886657715, 0.42308592796325684, 0.4180629253387451, 0.42006492614746094, 0.4056990146636963, 0.4109060764312744]
+	indelible2_100_codon_10cat=[0.43619394302368164, 0.43151402473449707, 0.4308300018310547, 0.44187402725219727, 0.45023298263549805, 0.43655991554260254, 0.4258692264556885, 0.4209752082824707, 0.43906593322753906, 0.4262430667877197]
 
+	seqgen1000=[2.4755289554595947, 2.411590099334717, 2.4759140014648438, 2.3132500648498535, 2.453019142150879, 2.4912800788879395, 2.53383207321167, 2.328788995742798, 2.446610927581787, 2.3403468132019043]
+	seqgen1000_10cat=[2.4618189334869385, 2.4114022254943848, 2.459367036819458, 2.3362350463867188, 2.431511878967285, 2.3429830074310303, 2.4409120082855225, 2.3587169647216797, 2.5023059844970703, 2.3628599643707275]
+	seqgen1000_alpha=[3.920012950897217, 3.9600830078125, 4.005131006240845, 3.8833510875701904, 3.9653871059417725, 3.9893078804016113, 3.992614984512329, 3.9619109630584717, 3.9531421661376953, 3.959604024887085]
+	NaNs=['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']
+	
+	phastSim20000=[3.8024981021881104, 3.1865439414978027, 3.1835639476776123, 3.0934529304504395, 3.165221929550171, 3.1619739532470703, 3.2406389713287354, 3.072295904159546, 3.0972628593444824, 3.2586851119995117]
+	phastSim20000_10cat=[3.226116895675659, 3.116103172302246, 3.2135679721832275, 3.146617889404297, 3.1883559226989746, 3.2167351245880127, 3.1342380046844482, 3.242230176925659, 5.162225008010864, 3.2765140533447266]
+	phastSim20000_alpha=[3.089195966720581, 3.113906145095825, 3.1601879596710205, 3.0560100078582764, 3.4628560543060303, 3.225409984588623, 3.119723081588745, 3.0943148136138916, 3.1068480014801025, 3.1178669929504395]
+	phastSim20000_codon=[3.292970895767212, 3.2894129753112793, 3.23388409614563, 3.264816999435425, 3.1970441341400146, 3.1810920238494873, 3.1609909534454346, 3.137653112411499, 3.193368911743164, 3.2282588481903076]
+	phastSim20000_codon_10cat=[3.237046003341675, 3.310333013534546, 3.2924559116363525, 3.2617690563201904, 3.1413769721984863, 3.296412944793701, 3.244813919067383, 3.250843048095703, 3.157186985015869, 3.184061050415039]
+	phastSim20000_codon_alpha=[3.24564790725708, 3.1222660541534424, 3.0887770652770996, 3.0826399326324463, 3.142029047012329, 2.994220018386841, 2.968656063079834, 3.0855040550231934, 3.045428991317749, 3.065749168395996]
+	
+	names=["phastSim (20,000 tips)","SeqGen (1,000 tips)","INDELible-m1 (10 tips)","INDELible-m2 (100 tips)"]
+	colors=["red","purple","yellow","brown"]
+	models=["nucleotide","nuc+10cat","nuc+alpha","codon","codon+10cat","codon+alpha"]
+	times=[[phastSim20000,seqgen1000,INDELible10,indelible2_100],[phastSim20000_10cat,seqgen1000_10cat,INDELible10_10cat,indelible2_100_10cat],[phastSim20000_alpha,seqgen1000_alpha,INDELible10_alpha,indelible2_100_alpha],[phastSim20000_codon,NaNs,INDELible10_codon,indelible2_100_codon],[phastSim20000_codon_10cat,NaNs,INDELible10_codon_10cat,indelible2_100_codon_10cat],[phastSim20000_codon_alpha,NaNs,NaNs,NaNs]]
+	boxplot(times,names,pathSimu+"boxplot_times_models.pdf",models,colors,'Evolutionary model',8)
 
-
+	
+	
+	
+	#checking the effects of branch lengths over running times
+	#phastSim 100000 tips, INDELible 1000 tips, Seq-Gen 5000 tips
+	phastSim100000=[12.136877059936523, 11.765272855758667, 12.018028974533081, 12.175333023071289, 11.63103699684143, 11.44487714767456, 11.771679878234863, 11.911523818969727, 11.839121103286743, 11.610697984695435]
+	phastSim100000_scale01=[6.787471055984497, 6.508502006530762, 6.604642868041992, 6.449320077896118, 6.572448968887329, 6.534075975418091, 6.582338809967041, 6.6191699504852295, 6.599027872085571, 6.590991020202637]
+	phastSim100000_scale10=[61.11373996734619, 57.925140142440796, 58.324761152267456, 58.994688987731934, 57.3508939743042, 57.853127002716064, 59.886695861816406, 57.88926315307617, 59.73718214035034, 60.17274498939514]
+	
+	seqgen5000=[11.902686834335327, 11.977451086044312, 11.844815969467163, 12.060249090194702, 12.185868978500366, 12.155524969100952, 13.859594106674194, 12.145087957382202, 12.049667119979858, 12.08738112449646]
+	seqgen5000_scale01=[11.94965410232544, 11.937930822372437, 11.490603923797607, 11.666943073272705, 11.815308809280396, 11.85882306098938, 11.835784196853638, 11.729623079299927, 11.99119520187378, 11.87510895729065]
+	seqgen5000_scale10=[11.821383953094482, 11.782198905944824, 12.818541049957275, 12.114749908447266, 12.099608898162842, 11.971168041229248, 11.937159061431885, 12.158576011657715, 11.974681854248047, 12.383517980575562]
+	
+	indelible1000=[21.826755046844482, 21.699470043182373, 21.36352300643921, 21.440908193588257, 22.4670250415802, 21.947756052017212, 22.008903980255127, 22.392734050750732, 22.055774927139282, 22.210675954818726]
+	indelible1000_scale01=[21.488821029663086, 21.76942801475525, 21.745434045791626, 21.717295169830322, 21.533621072769165, 21.723461866378784, 21.697612047195435, 21.479082107543945, 21.48190689086914, 21.40741991996765]
+	indelible1000_scale10=[21.98651385307312, 22.482820987701416, 22.185405015945435, 21.92905902862549, 22.216336965560913, 21.83970284461975, 22.006327152252197, 21.74193501472473, 21.808908939361572, 22.07722306251526]
+	
+	indelible2_1000=[11.328500032424927, 11.311942100524902, 11.490538835525513, 11.408236980438232, 11.429368019104004, 11.483153104782104, 11.532360076904297, 11.781499147415161, 11.747456073760986, 11.791171073913574]
+	indelible2_1000_scale01=[11.074132919311523, 12.201006174087524, 12.127370834350586, 12.11881399154663, 11.880905866622925, 11.744970083236694, 11.71963906288147, 11.66642689704895, 11.640264987945557, 11.676317930221558]
+	indelible2_1000_scale10=[12.04808497428894, 11.315619945526123, 11.326038122177124, 11.52104902267456, 11.497009992599487, 11.315742015838623, 11.406708002090454, 11.539706945419312, 11.63560700416565, 11.623785018920898]
+	
+	names=["phastSim (100,000 tips)","SeqGen (5,000 tips)","INDELible-m1 (1000 tips)","INDELible-m2 (1000 tips)"]
+	colors=["red","purple","yellow","brown"]
+	lengths=["0.1","1","10"]
+	times=[[phastSim100000_scale01,seqgen5000_scale01,indelible1000_scale01,indelible2_1000_scale01],[phastSim100000,seqgen5000,indelible1000,indelible2_1000],[phastSim100000_scale10,seqgen5000_scale10,indelible1000_scale10,indelible2_1000_scale10]]
+	boxplot(times,names,pathSimu+"boxplot_times_rescale.pdf",lengths,colors,'branch length rescale factor',70,degreeSkew=0)
+	
 exit()
 
 
