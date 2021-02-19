@@ -998,8 +998,8 @@ class GenomeTree_vanilla:
 
         # Now normalize mutation rates so that, at the start,
         # the expected number of substitutions per unit branch length is 1?
-        for i in range(4):
-            for j in range(4):
+        for i in self.range4:
+            for j in self.range4:
                 self.mutMatrix[i][j] = self.mutMatrix[i][j] / norm
                 for c in range(self.nCat):
                     if j != i:
@@ -1034,7 +1034,7 @@ class GenomeTree_vanilla:
             childTotAlleles.append(list(parentTotAlleles[c]))
             childMutations.append([[], [], [], []])
             # Initialize child mutation list with parent one
-            for i in range(4):
+            for i in self.range4:
                 for k in range(len(parentMuts[c][i])):
                     childMutations[c][i].append(list(parentMuts[c][i][k]))
         extrasChild = []
@@ -1060,8 +1060,8 @@ class GenomeTree_vanilla:
             found = False
             hyperExtra = False
             for c in range(self.nCat):
-                for i in range(4):
-                    for j in range(4):
+                for i in self.range4:
+                    for j in self.range4:
                         if j != i:
                             tot += childTotAlleles[c][i] * self.mutMatrix[i][j] * self.categoryRates[c]
                             # print("i "+str(i)+" j "+str(j)+" tot "+str(tot))
