@@ -32,7 +32,7 @@ git clone https://github.com/NicolaDM/phastSim
 phastSim requires the Python packages [numpy](https://numpy.org/), [importlib_resources](https://importlib-resources.readthedocs.io/en/latest/), [ete3](http://etetoolkit.org/), and [biopython](https://biopython.org/). These packages are all available through both `PyPi`:
 
 ```sh
-pip install numpy importlib-resources numpy ete3 biopython
+pip install numpy importlib-resources six ete3 biopython
 ```
 
 and `conda`:
@@ -49,7 +49,7 @@ Versions used for testing were: python=3.9.1, numpy=1.19.2, importlib_resources=
 If installation was performed using `pip`, you can run `phastSim` using:
 ```sh
 mkdir simulation_output
-phastSim --path simulation_output/ --seed 7 --createFasta --createInfo \
+phastSim --outpath simulation_output/ --seed 7 --createFasta --createInfo \
          --createNewick --createPhylip --treeFile [tree_name.newick] \
          --scale 3.0 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
          --hyperMutProbs 0.01 0.01 --hyperMutRates 20.0 200.0 --codon \
@@ -61,7 +61,7 @@ Alternatively, if you have cloned this repository, an example command to run the
 
 ```sh
 mkdir simulation_output
-python bin/phastSimulate --path simulation_output/ --seed 7 --createFasta --createInfo \
+python bin/phastSimulate --outpath simulation_output/ --seed 7 --createFasta --createInfo \
                          --createNewick --createPhylip --treeFile phastSim/example/example_sarscov2_tree.newick \
                          --scale 3.0 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
                          --hyperMutProbs 0.01 0.01 --hyperMutRates 20.0 200.0 --codon \
