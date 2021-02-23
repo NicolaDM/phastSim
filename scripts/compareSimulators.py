@@ -1,11 +1,11 @@
-import sys
+#import sys
 import os
 #import math
 import numpy as np
 import os.path
 #from os import path
 import argparse
-from ete3 import Tree
+#from ete3 import Tree
 import time
 
 #script to compare the running time of phastSim with pyvolve, seq-gen and indelible.
@@ -422,7 +422,7 @@ if generatePlots:
 	
 	import matplotlib.pyplot as plt
 	#import numpy as np
-	from matplotlib.patches import Polygon
+	#from matplotlib.patches import Polygon
 	
 	names=["tree generation","phastSim","phastSim+Fasta","pyvolve","SeqGen","INDELible-m1","INDELible-m2"]
 	colors=["blue","red","orange","green","purple","yellow","brown"]
@@ -454,7 +454,7 @@ if generatePlots:
 		fig, ax1 = plt.subplots(figsize=(10, 6))
 		fig.canvas.set_window_title('Simulation Running times')
 		fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
-		num_boxes = len(valuesLists)*len(valuesLists[0])
+		#num_boxes = len(valuesLists)*len(valuesLists[0])
 		
 		data=np.zeros((len(valuesLists)*len(valuesLists[0]),len(valuesLists[0][0])))
 		print((len(valuesLists)*len(valuesLists[0]),len(valuesLists[0][0])))

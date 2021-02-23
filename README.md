@@ -32,13 +32,13 @@ git clone https://github.com/NicolaDM/phastSim
 phastSim requires the Python packages [numpy](https://numpy.org/), [importlib_resources](https://importlib-resources.readthedocs.io/en/latest/), [ete3](http://etetoolkit.org/), and [biopython](https://biopython.org/). These packages are all available through both `PyPi`:
 
 ```sh
-pip install numpy importlib-resources six ete3 biopython
+pip install numpy importlib-resources six ete3 biopython argparse
 ```
 
 and `conda`:
 
 ```sh
-conda install -c defaults -c etetoolkit -c conda-forge numpy importlib_resources ete3 biopython
+conda install -c defaults -c etetoolkit -c conda-forge numpy importlib_resources six ete3 biopython argparse
 ```
 
 Versions used for testing were: python=3.9.1, numpy=1.19.2, importlib_resources=5.1.0, ete3=3.1.2, and biopython=1.78.
