@@ -61,7 +61,7 @@ Alternatively, if you have cloned this repository, an example command to run the
 
 ```sh
 mkdir simulation_output
-python bin/phastSimulate --outpath simulation_output/ --seed 7 --createFasta --createInfo \
+python bin/phastSim --outpath simulation_output/ --seed 7 --createFasta --createInfo \
                          --createNewick --createPhylip --treeFile phastSim/example/example_sarscov2_tree.newick \
                          --scale 3.0 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
                          --hyperMutProbs 0.01 0.01 --hyperMutRates 20.0 200.0 --codon \
