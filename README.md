@@ -10,6 +10,7 @@ Fast sequence evolution simulation for SARS-CoV-2 phylogenies and other genomic 
 - [Installation and dependencies](#installation-and-dependencies)
 - [Usage](#usage)
 - [Other included scripts](#other-included-scripts)
+- [Tests](#tests)
 
 ## Installation and dependencies
 
@@ -61,11 +62,11 @@ Alternatively, if you have cloned this repository, an example command to run the
 
 ```sh
 mkdir simulation_output
-python bin/phastSimulate --outpath simulation_output/ --seed 7 --createFasta --createInfo \
-                         --createNewick --createPhylip --treeFile phastSim/example/example_sarscov2_tree.newick \
-                         --scale 3.0 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
-                         --hyperMutProbs 0.01 0.01 --hyperMutRates 20.0 200.0 --codon \
-                         --reference phastSim/example/MN908947.3.fasta
+python bin/phastSim --outpath simulation_output/ --seed 7 --createFasta --createInfo \
+                    --createNewick --createPhylip --treeFile phastSim/example/example_sarscov2_tree.newick \
+                    --scale 3.0 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
+                    --hyperMutProbs 0.01 0.01 --hyperMutRates 20.0 200.0 --codon \
+                    --reference phastSim/example/MN908947.3.fasta
 ```
 which uses an example SARS-CoV-2 tree included here, specified by `--treeFile phastSim/example/example_sarscov2_tree.newick`, and a reference SARS-CoV-2 genome in FASTA format, provided here and specified by `--reference phastSim/example/MN908947.3.fasta`.
 
@@ -109,3 +110,15 @@ Other scripts (in the "scripts" subdirectory) which are not required to run `pha
 - **random_tree.py**, which efficiently generates a random birth-death tree with many tips, and
 
 - **compareSimulators.py**, which is used to compare the running time of phastSim with other simulators (Seq-Gen, INDELible and pyvolve).
+
+
+## Tests
+Tests are not required to run `phastSim` but can be helpful for development, and are also included in this repository. Tests make use of the [pytest](https://docs.pytest.org/en/stable/) package. During development, it can be useful to install `phastSim` in editable mode; to do this run
+
+```sh
+pip install -e .
+```
+
+from the base directory of the project. 
+
+To actually run the tests, do `pytest <name of test>`, and use the `-s` flag if you want the print statements to get printed to stdout. 
