@@ -1,7 +1,5 @@
 simulation_output/*
 .vscode/*
 *.egg-info
-setup.py
-setup.cfg
 .pytest_cache/*
 */__pycache__/*
