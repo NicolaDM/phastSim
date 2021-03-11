@@ -1,6 +1,7 @@
 import numpy as np
 import argparse
 from importlib_resources import files
+from enum import Enum
 
 
 
@@ -688,11 +689,24 @@ class GenomeTree_hierarchical:
         if rate <= 0:
             return 0
 
-        return 1 + max(int(np.log(rand)/np.log(rate)), 0)
+        return 1 + int(np.log(rand)/np.log(rate))
+
+    def deleteNode(self, rate, node, remaining_deletions):
+        raise NotImplementedError("come back tomorrow")
 
     def sampleInsertion(self, rate, rand):
+
+        
         # sample a geometric number
+        insertion_length = 1 + int(np.log(rand)/np.log(rate))
+        
         # use the mutMatrix to generate a nucleotide sequence
+        
+
+        # turn the nucleotide sequence into a genomeTree
+
+        # return the tuple (list data, genomeTree)
+
         raise NotImplementedError("TO DO")
 
     def findPos(self, rand, parentGenomeNode, level):
@@ -704,16 +718,27 @@ class GenomeTree_hierarchical:
             
             # we'll choose an indel if rand is less than a threshold determined by the insertion and deletion rates for this site
             if self.indels:
-                # we need to deal with an edge case - if the deletion is very close to the end of the genome then we may end up
-                # removing fewer symbols than we expected to
 
-                # if deletion:
-                attempted_deletion_length = self.sampleDeletion(node.deletionRate, rand)
-                actual_deletion_length = 0 # TODO
-                return ["DEL", actual_deletion_length, node.genomePos]
+                # deletions
+                if rand < node.deletionRate:
+
+                    # we need to deal with an edge case - if the deletion is very close to the end of the genome then we may end up
+                    # removing fewer symbols than we expected to.
+
+                    r = np.random.rand()
+                    attempted_deletion_length = self.sampleDeletion(node.deletionRate, r)
+                    actual_deletion_length = 0 # TODO
+                    mutEvent = ["DEL", actual_deletion_length, node.genomePos]
+                    return mutEvent
                 
                 # else insertion:
-                self.sampleInsertion(node.insertionRate, rand)
+                if rand < node.deletionRate + node.insertionRate:
+                
+                    mutEvent, mutEventRootNode = self.sampleInsertion(node.insertionRate, r)
+
+                    parentGenomeNode = mutEventRootNode
+
+                    return mutEvent
             
             # otherwise we are doing a substitution and can proceed as normal
             if self.codon:
@@ -808,10 +833,24 @@ class GenomeTree_hierarchical:
                     newChild.belowNodes = list(child.belowNodes)
 
                 mutEvent = self.findPos(rand, newChild, level)
+                if self.indels:
+                    if mutEvent[0] == "DEL":
+                        self.deleteNode(rand, newChild, remaining_deletions=mutEvent[1])
+                        
+                    elif mutEvent[0] == "INS":
+                        pass
+
                 parentGenomeNode.rate += newChild.rate
             else:
                 # in this case the child is already on the same level, so no need to create another one, just update its mutation rate.
                 mutEvent = self.findPos(rand, child, level)
+                if self.indels:
+                    if mutEvent[0] == "DEL":
+                        self.deleteNode(rand, newChild, remaining_deletions=mutEvent[1])
+                        
+                    elif mutEvent[0] == "INS":
+                        pass
+
                 parentGenomeNode.rate += child.rate
             return mutEvent
 
@@ -1425,7 +1464,30 @@ class genomeNode:
             return f"({f},rate:{self.rate},pos:{self.genomePos},{s})"
 
 
+class mutation:
 
+    def __init__(self, mEnum, genomePos, source, target, length):
+        self.mutationType = mEnum
+        self.genomePos = genomePos
+        self.source = source
+        self.target = target
+        self.length = length
+
+    def __str__(self):
+        if self.mutationType == mutationEnum.SUB:
+            return str(self.source) + str(self.genomePos) + str(self.target)
+        
+        if self.mutatioType == mutationEnum.DEL:
+            return str(self.genomePos) + "DEL" + str(self.length)
+
+        if self.mutatioType == mutationEnum.INS:
+            return str(hash(self)) + ":" + str(self.genomePos) + "INS" + str(self.target)
+
+
+class mutationEnum(Enum):
+    SUB = 1
+    INS = 2
+    DEL = 3
 
 def check_start_stop_codons(ref, gammaRates, omegas):
     # if first codon is a start codon, or last is a stop codon, don't allow them to evolve
