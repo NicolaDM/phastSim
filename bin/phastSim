@@ -13,7 +13,7 @@ as for example in genomic epidemiology.
 It can be instead be slower than traditional approaches when longer branch lengths are considered.
 
 example run:
-python3 efficientSimuSARS2.py --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 --scale 2.0 --hyperMutProbs 0.01
+python3 phastSim.py --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 --scale 2.0 --hyperMutProbs 0.01
  --hyperMutRates  100.0 --codon --treeFile rob-11-7-20.newick --createFasta
 
 Possible future extensions: 
