@@ -52,7 +52,7 @@ If installation was performed using `pip`, you can run `phastSim` using:
 mkdir simulation_output
 phastSim --outpath simulation_output/ --seed 7 --createFasta --createInfo \
          --createNewick --createPhylip --treeFile [tree_name.newick] \
-         --scale 3.0 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
+         --scale 0.333333333 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
          --hyperMutProbs 0.01 0.01 --hyperMutRates 20.0 200.0 --codon \
          --reference [ref_genome.fasta]
 ```
@@ -64,7 +64,7 @@ Alternatively, if you have cloned this repository, an example command to run the
 mkdir simulation_output
 python bin/phastSim --outpath simulation_output/ --seed 7 --createFasta --createInfo \
                     --createNewick --createPhylip --treeFile phastSim/example/example_sarscov2_tree.newick \
-                    --scale 3.0 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
+                    --scale 0.333333333 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
                     --hyperMutProbs 0.01 0.01 --hyperMutRates 20.0 200.0 --codon \
                     --reference phastSim/example/MN908947.3.fasta
 ```

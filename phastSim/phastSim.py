@@ -506,8 +506,8 @@ class GenomeTree_hierarchical:
                 node.deletionRate = self.deletionRate[pos]
 
                 if (pos == -1):
-                    node.deletionRate = 0
-                    node.rate = node.insertionRate
+                    node.deletionRate = 0.0
+                    node.rate = 0.0
                     node.allele = "$"
                     node.rates = np.empty(0)
                     return
@@ -600,9 +600,6 @@ class GenomeTree_hierarchical:
                 # total mutation rate at the node
                 node.rate -= node.rates[node.allele][node.allele]
 
-                if self.indels:
-                    node.rate += node.insertionRate + node.deletionRate
-
 
         else:
             # split the considered part of the genome in two, assign each half to both children,
@@ -626,7 +623,7 @@ class GenomeTree_hierarchical:
         norm = self.genomeRoot.rate / len(self.ref)
         self.norm = norm
 
-        print("\n Total cumulative mutation rate per site before normalization: " + str(norm))
+        print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
         # We rescale by the input normalization factor, this is the same as rescaling all
         # the branch lengths by this rescaling factor
         norm = norm / scale
@@ -656,6 +653,25 @@ class GenomeTree_hierarchical:
 
         # normalize the rates
         normalize(node=self.genomeRoot, norm=norm)
+
+        if self.indels:
+            # if there are indels then some further calculation is require to convert the rates from 
+            # substitution rates to overall rates.
+            
+
+            def include_indels(node, scale):
+                
+                if node.isTerminal:
+                    node.insertionRate * scale
+                    node.deletionRate * scale
+                    node.rate += (node.insertionRate + node.deletionRate)
+                
+                else:
+                    node.rate = include_indels(node.belowNodes[0], scale) + include_indels(node.belowNodes[1], scale)
+
+                return node.rate
+
+            include_indels(node=self.genomeRoot, scale=scale)
 
 
 
@@ -691,10 +707,32 @@ class GenomeTree_hierarchical:
 
         return 1 + int(np.log(rand)/np.log(rate))
 
-    def deleteNode(self, rate, node, remaining_deletions):
-        raise NotImplementedError("come back tomorrow")
+    def deleteNodes(self, rand, node, remaining_deletions):
 
-    def sampleInsertion(self, rate, rand):
+        if rand > node.rate or remaining_deletions == 0:
+            # these nodes can be 'short circuited' - we do not even have to consider them
+            return 0
+        
+        if node.isTerminal:
+            if node.allele == "-" or node.allele == "$":
+                # nodes with these alleles are 'empty' symbols and cannot/ should not count as being deleted
+                return 0
+            
+            node.allele = "-"
+            node.rate = 0.0
+            node.insertionRate = 0.0
+            node.deletionRate = 0.0
+
+            return 1
+        
+        else:
+            child0, child1 = node.belowNodes[0], node.belowNodes[1]
+            deleted_leaves_left = self.deleteNodes(rand, child0, remaining_deletions)
+            deleted_leaves_right = self.deleteNodes(rand - child0.rate, child1, remaining_deletions - deleted_leaves_left)
+            node.rate = child0.rate + child1.rate
+            return deleted_leaves_left + deleted_leaves_right
+
+    def sampleInsertion(self, rate, node, rand):
 
         
         # sample a geometric number
@@ -704,10 +742,14 @@ class GenomeTree_hierarchical:
         
 
         # turn the nucleotide sequence into a genomeTree
+        genomeSeq = None # TODO
+        genomeTree = None # TODO
 
         # return the tuple (list data, genomeTree)
+        mutData = mutation(mType=mType.INS, genomePos=node.genomePos[0], insert=genomeSeq)
 
-        raise NotImplementedError("TO DO")
+        raise NotImplementedError
+        return mutData, genomeTree
 
     def findPos(self, rand, parentGenomeNode, level):
         # find position to mutate along the genome, and update temporary genome tree structure as you go
@@ -722,19 +764,17 @@ class GenomeTree_hierarchical:
                 # deletions
                 if rand < node.deletionRate:
 
-                    # we need to deal with an edge case - if the deletion is very close to the end of the genome then we may end up
-                    # removing fewer symbols than we expected to.
-
-                    r = np.random.rand()
-                    attempted_deletion_length = self.sampleDeletion(node.deletionRate, r)
-                    actual_deletion_length = 0 # TODO
-                    mutEvent = ["DEL", actual_deletion_length, node.genomePos]
+                    attempted_deletion_length = self.sampleDeletion(node.deletionRate, rand/node.deletionRate)
+                    pos = parentGenomeNode.genomePos[0]
+                    mutEvent = mutation(mType=mType.DEL, genomePos=pos, length=attempted_deletion_length)
+                    # in the tidy up function (self.deleteNodes), the length of this mutEvent may be changed if we are in an edge case
+                    # where we delete at a site very close to the end of the genome
                     return mutEvent
                 
                 # else insertion:
                 if rand < node.deletionRate + node.insertionRate:
                 
-                    mutEvent, mutEventRootNode = self.sampleInsertion(node.insertionRate, r)
+                    mutEvent, mutEventRootNode = self.sampleInsertion(node.insertionRate, rand/(node.deletionRate + node.insertionRate))
 
                     parentGenomeNode = mutEventRootNode
 
@@ -834,10 +874,10 @@ class GenomeTree_hierarchical:
 
                 mutEvent = self.findPos(rand, newChild, level)
                 if self.indels:
-                    if mutEvent[0] == "DEL":
-                        self.deleteNode(rand, newChild, remaining_deletions=mutEvent[1])
+                    if mutEvent.mType == mType.DEL:
+                        self.deleteNode(rand, newChild, remaining_deletions=mutEvent.data["length"])
                         
-                    elif mutEvent[0] == "INS":
+                    elif mutEvent.mType == mType.INS:
                         pass
 
                 parentGenomeNode.rate += newChild.rate
@@ -845,10 +885,10 @@ class GenomeTree_hierarchical:
                 # in this case the child is already on the same level, so no need to create another one, just update its mutation rate.
                 mutEvent = self.findPos(rand, child, level)
                 if self.indels:
-                    if mutEvent[0] == "DEL":
-                        self.deleteNode(rand, newChild, remaining_deletions=mutEvent[1])
+                    if mutEvent.mType == mType.DEL:
+                        self.deleteNode(rand, child, remaining_deletions=mutEvent.data["length"])
                         
-                    elif mutEvent[0] == "INS":
+                    elif mutEvent.mType == mType.INS:
                         pass
 
                 parentGenomeNode.rate += child.rate
@@ -888,6 +928,12 @@ class GenomeTree_hierarchical:
             if self.verbose:
                 print("Selecting new mutation event. Rate " + str(rate) + " random value " + str(rand))
             mutEvent = self.findPos(rand, newGenomeNode, level)
+            
+            # if the mutation event was a deletion then some tidy up is necessary
+            if mutEvent.mType == mType.DEL:
+                length_deleted = self.deleteNodes(rand, newGenomeNode, mutEvent.data["length"])
+                mutEvent.data["length"] = length_deleted
+
             childNode.mutations.append(mutEvent)
             if createNewick:
                 childNode.mutAnnotation.append(self.allelesList[mutEvent[1]] +
@@ -1465,26 +1511,25 @@ class genomeNode:
 
 
 class mutation:
-
-    def __init__(self, mEnum, genomePos, source, target, length):
-        self.mutationType = mEnum
+    
+    def __init__(self, mType, genomePos, **data):
+        self.mType = mType
         self.genomePos = genomePos
-        self.source = source
-        self.target = target
-        self.length = length
+        self.data = data
+        
 
     def __str__(self):
-        if self.mutationType == mutationEnum.SUB:
-            return str(self.source) + str(self.genomePos) + str(self.target)
+        if self.mType == mType.SUB:
+            return str(self.data["from"]) + str(self.genomePos) + str(self.data["to"])
         
-        if self.mutatioType == mutationEnum.DEL:
-            return str(self.genomePos) + "DEL" + str(self.length)
+        if self.mType == mType.DEL:
+            return str(self.genomePos) + "DEL" + str(self.data["length"])
 
-        if self.mutatioType == mutationEnum.INS:
-            return str(hash(self)) + ":" + str(self.genomePos) + "INS" + str(self.target)
+        if self.mType == mType.INS:
+            return str(self.data["index"]) + ":" + str(self.genomePos) + "INS" + str(self.data["insert"])
 
 
-class mutationEnum(Enum):
+class mType(Enum):
     SUB = 1
     INS = 2
     DEL = 3

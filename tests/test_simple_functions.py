@@ -35,7 +35,7 @@ def create_standard_mock_arguments():
         hyperMutProbs=[],
         hyperMutRates=[],
         indels=True,
-        insertionRate=0.1,
+        insertionRate=5.0,
         deletionRate=0.2,
         noHierarchy=False,
         verbose=True,
@@ -111,6 +111,7 @@ def test_GenomeTree_hierarchical_initialises_without_indels():
 
     genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
     genome_tree.normalize_rates(scale=1)
+    #print(genome_tree)
 
 def test_GenomeTree_hierarchical_initialises():
 
@@ -149,9 +150,9 @@ def test_GenomeTree_hierarchical_initialises():
     )
 
     genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
-    #print(genome_tree)
+    print(genome_tree)
     genome_tree.normalize_rates(scale=1)
-    #print(genome_tree)
+    print(genome_tree)
 
 def test_genomeTree_hierarchical_findPos_without_indels():
     pass
