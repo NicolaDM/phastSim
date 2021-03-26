@@ -55,6 +55,8 @@ def test_phastSimRun_init_rootGenome():
     sim_run = phastSim.phastSimRun(mock_args)
 
     assert len(sim_run.create_rootGenome_nuc()[1]) == 10
+    
+    sim_run.args.codon = True
     assert len(sim_run.create_rootGenome_codon()[1]) == 9
 
     assert sim_run.init_substitution_rates()[0][0] == -0.472
@@ -76,6 +78,7 @@ def test_phastSimRun_init_gamma_rates():
 
 
 def setup_genome_tree():
+    np.random.seed(10)
     mock_args = create_standard_mock_arguments()
     mock_args.nCodons=3
     sim_run = phastSim.phastSimRun(mock_args)
@@ -90,7 +93,7 @@ def setup_genome_tree():
     omegas = sim_run.init_codon_substitution_model()
     gammaRates, omegas = phastSim.check_start_stop_codons(ref=ref, gammaRates=gammaRates, omegas=omegas)
     ins, ins_len, dels, dels_len = sim_run.init_indel_rates()
-    insertion_rates = sim_run.init_insertion_model()
+    insertion_freqs = sim_run.init_insertion_model()
 
     t = Tree("(A:1,(B:1,(E:1,D:1):0.5):0.5);")
     print(t)
@@ -107,7 +110,7 @@ def setup_genome_tree():
         indels=True,
         insertionRate=ins,
         insertionLength=ins_len,
-        insertionFrequencies=insertion_rates,
+        insertionFrequencies=insertion_freqs,
         deletionRate=dels,
         deletionLength=dels_len,
         scale=sim_run.args.scale,
@@ -118,6 +121,7 @@ def setup_genome_tree():
 
 def test_GenomeTree_hierarchical_initialises_without_indels():
 
+    np.random.seed(10)
     mock_args = create_standard_mock_arguments()
     mock_args.nCodons=4
     mock_args.rootGenomeLength=12

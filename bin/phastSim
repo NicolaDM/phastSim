@@ -60,8 +60,23 @@ else:
 	omegas = None
 
 
+# can only use indels in heirarchy mode
+if not hierarchy and sim_run.args.indels:
+	print("indels cannot be used with the -- noHierarchy option, exiting.")
+	exit()
 
-# Loads a tree structure from a newick string in ETE2. The returned variable t is the root node for the tree.
+# set up arguments for indel model
+insertion_rates, insertion_length, insertion_frequencies, deletion_rates, deletion_lengths = [], [], [], [], []
+
+if sim_run.args.indels:
+
+	insertion_rates, insertion_length, deletion_rates, deleltion_length = sim_run.init_indel_rates()
+	insertion_frequencies = sim_run.init_insertion_model()
+
+
+
+
+# Loads a tree structure from a newick string in ETE3. The returned variable t is the root node for the tree.
 start = time.time()
 t = Tree(args.treeFile)
 time1 = time.time() - start
@@ -104,6 +119,13 @@ if hierarchy:
 		mutMatrix=mutMatrix,
 		hyperCategories=hyperCategories,
 		hyperMutRates=sim_run.args.hyperMutRates,
+		indels=sim_run.args.indels,
+		insertionRate=insertion_rates,
+		insertionLength=insertion_length,
+		insertionFrequencies=insertion_frequencies,
+		deletionRate=deletion_rates, 
+		deletionLength=deletion_lengths,
+		scale=sim_run.args.scale,
 		file=file,
 		verbose=sim_run.args.verbose)
 
