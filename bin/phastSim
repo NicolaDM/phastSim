@@ -3,6 +3,9 @@
 import numpy as np
 from ete3 import Tree
 import time
+import sys
+#sys.path.append(r'/Users/demaio/Documents/GitHub/phastSim')
+#import phastSim2.phastSim as phastSim
 import phastSim.phastSim as phastSim
 
 
@@ -13,7 +16,7 @@ as for example in genomic epidemiology.
 It can be instead be slower than traditional approaches when longer branch lengths are considered.
 
 example run:
-python3 efficientSimuSARS2.py --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 --scale 2.0 --hyperMutProbs 0.01
+python3 bin/phastSim --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 --scale 2.0 --hyperMutProbs 0.01
  --hyperMutRates  100.0 --codon --treeFile rob-11-7-20.newick --createFasta
 
 Possible future extensions: 
@@ -47,7 +50,11 @@ ref, refList = sim_run.init_rootGenome()
 mutMatrix = sim_run.init_substitution_rates()
 
 # set up gamma rates
-gammaRates = sim_run.init_gamma_rates()
+if args.mutationsTSVinput!=None:
+	gammaRates, preMutationsBranches = sim_run.init_gamma_rates()
+else:
+	gammaRates = sim_run.init_gamma_rates()
+	preMutationsBranches={}
 
 # set up hypermutation rates
 hyperCategories = sim_run.init_hypermutation_rates()
@@ -63,7 +70,10 @@ else:
 
 # Loads a tree structure from a newick string in ETE2. The returned variable t is the root node for the tree.
 start = time.time()
-t = Tree(args.treeFile)
+if args.mutationsTSVinput !=None:
+	t = Tree(args.treeFile,format=1)
+else:
+	t = Tree(args.treeFile)
 time1 = time.time() - start
 print("Time for reading tree with ETE3: " + str(time1))
 	
@@ -87,8 +97,8 @@ else:
 # AND WITH INTERNAL NODES BING MERGING GROUPS OF LOCI CONTAINING INFORMATION ABOUT THEIR CUMULATIVE RATES.
 # THIS WAY UPDATING A MUTATION EVENT REQUIRES COST LOGARITHMIC IN GENOME SIZE EVEN IF EVERY SITE HAS A DIFFERENT RATE. 
 if hierarchy:
-	# CODONS: maybe don't create all the matrices from the start
-	# (might have too large an memory and time preparation cost).
+	# CODONS: don't create all the matrices from the start
+	# (has too large a memory and time preparation cost).
 	# instead, initialize only the rates from the reference allele (only 9 rates are needed),
 	# and store them in a dictionary at level 0 terminal nodes, and when new codons at a position
 	# are reached, extend the dictionary and calculate these new rates.
@@ -132,7 +142,7 @@ if hierarchy:
 	# while traversing the tree, as we move up gain from a node back to its parent
 	# (so that we can move to siblings etc), the nodes in layers below the current one are simply "forgotten"
 	# (in C they could be de-allocated, but the task here is left to python automation).
-	genome_tree.mutateBranchETEhierarchy(t, genome_tree.genomeRoot, 1, sim_run.args.createNewick)
+	genome_tree.mutateBranchETEhierarchy(t, genome_tree.genomeRoot, 1, sim_run.args.createNewick,preMutationsBranches)
 
 
 

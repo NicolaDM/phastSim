@@ -3,8 +3,6 @@ import argparse
 from importlib_resources import files
 # from ete3 import Tree
 
-
-
 # CONSTANTS
 class Constants:
     def __init__(self):
@@ -32,6 +30,9 @@ def setup_argument_parser():
                         type=float, nargs='+', default=[1.0])
     parser.add_argument('--treeFile', default=None,
                         help='Name of file containing the tree used to simulate sequences (newick format).')
+    parser.add_argument('--mutationsTSVinput', default=None,
+                        help='Name of (optional) file containing mutation events that are enforced on the tree.'
+                            'Sites mutated this way become unmutable through the standard simulated mutation process.')
     parser.add_argument('--scale', default=1.0, type=float,
                         help='Scale the simulation tree by this amount (default 1.0). Branch lengths are assumed'
                              ' in terms of expected substitutions per site '
@@ -327,6 +328,27 @@ class phastSimRun:
             categoriesInv = np.random.choice(2, size=self.ref_len, p=[1.0 - invariable, invariable])
             gammaRates[np.nonzero(categoriesInv)[0]] = 0.0
 
+        mutationsTSVinput=self.args.mutationsTSVinput
+        if mutationsTSVinput!=None:
+            mutation_file = f'{mutationsTSVinput}'
+            file = open(mutation_file)
+            line=file.readline()
+            preMutationsBranches={}
+            while line!="" and line!="\n": 
+                linelist=line.split()
+                if len(linelist)>1:
+                    branch=linelist[0]
+                    preMutationsBranches[branch]=[]
+                    linelist2=linelist[1].split(",")
+                    for i in range(len(linelist2)):
+                        pos=int(linelist2[i][1:-1])
+                        gammaRates[pos-1]=0.0
+                        preMutationsBranches[branch].append((pos,linelist2[i][0],linelist2[i][-1]))
+                line=file.readline()
+            file.close()
+            print(preMutationsBranches)
+            return gammaRates, preMutationsBranches
+
         return gammaRates
 
 
@@ -465,13 +487,14 @@ class GenomeTree_hierarchical:
 
 
     def populateGenomeTree(self, node):
+        node.refNode = node
         if node.genomePos[0] == node.genomePos[1]:
             # these are terminal nodes. Only these nodes need information regarding specific alleles and rates.
             pos = node.genomePos[1]
             node.isTerminal = True
             # the corresponding node in the level 0 tree; in this case, it's itself.
             # Only terminal nodes in the level 0 tree need to contain info regarding all mutation rates.
-            node.refNode = node
+            #node.refNode = node
             # the current allele at this terminal node. It starts as the reference allele at the considered position.
             if self.codon:
                 node.allele = self.codonAlleles[self.ref[pos * 3:(pos + 1) * 3]]
@@ -734,8 +757,9 @@ class GenomeTree_hierarchical:
                 newChild = genomeNode(level=level)  # upNode=parentGenomeNode
                 parentGenomeNode.belowNodes[childI] = newChild
                 newChild.isTerminal = child.isTerminal
+                newChild.refNode = child.refNode
                 if child.isTerminal:
-                    newChild.refNode = child.refNode
+                    #newChild.refNode = child.refNode
                     newChild.allele = child.allele
                 else:
                     newChild.belowNodes = list(child.belowNodes)
@@ -748,8 +772,141 @@ class GenomeTree_hierarchical:
                 parentGenomeNode.rate += child.rate
             return mutEvent
 
+    def applyMutation(self, parentGenomeNode, level, mutEvent):
+        # find position to mutate along the genome, and update temporary genome tree structure as you go.
+        # this one is only used for mutations that are forced by the user
+        #print(mutEvent)
+        #print(level)
+        if parentGenomeNode.isTerminal:
+            # reached a terminal node, now force the mutation event at the position and update all rates
+            node = parentGenomeNode.refNode
+            a = parentGenomeNode.allele
+            if self.codon:
+                i2=mutEvent[0]-(node.genomePos[0] * 3)
+                #j=self.alleles[mutEvent[2]]
+                j=mutEvent[2]
+                #if a!=self.alleles[mutEvent[1]]:
+                if a!=mutEvent[1]:
+                    print("Mutation at pos "+str(mutEvent[0])+" is from "+mutEvent[0]+" to "+mutEvent[1]+",but "
+                    "reference allele at same position is "+self.esList[a]+". Ignoring this for now, but maybe reference is not correct." )
+                #j = self.sampleMutationCodon(rates=node.rates[a], rand=rand)
+                indeces = self.codonIndices[a]
+                #i2 = int(j / 3)
+                #i3 = j % 3
+                newIndeces = list(indeces)
+                #newIndeces[i2] = (newIndeces[i2] + i3 + 1) % 4
+                newIndeces[i2] = j
+                parentGenomeNode.allele = self.codonIndices2[newIndeces[0], newIndeces[1], newIndeces[2]]
+                #mutEvent = [node.genomePos[0] * 3 + i2, indeces[i2], newIndeces[i2]]
+                if self.verbose:
+                    print(f"Mutation forced by user from {a} {self.codonAllelesList[a]} "
+                          f"to {parentGenomeNode.allele} {self.codonAllelesList[parentGenomeNode.allele]}"
+                          f" , position {mutEvent[0]} category rate {self.gammaRates[mutEvent[0]]}"
+                          f" hyperCat {self.hyperCategories[mutEvent[0]]}"
+                          f" omega {self.omegas[node.genomePos[0]]}"
+                          f" old rate {node.rates[a][9]} old rates:")
+                    print(node.rates[a])
+                if not (parentGenomeNode.allele in node.rates):
+                    node.rates[parentGenomeNode.allele] = np.zeros(10)
+                    indeces = self.codonIndices[parentGenomeNode.allele]
+                    parentGenomeNode.rate = 0.0
+                    range3=self.range3
+                    for i2 in range3:
+                        pos2 = node.genomePos[0] * 3 + i2
+                        nuc1 = indeces[i2]
+                        for i3 in range3:
+                            nuc2 = (nuc1 + i3 + 1) % 4
+                            if self.isNonsynom[parentGenomeNode.allele, i2, i3]:
+                                if self.isIntoStop[parentGenomeNode.allele, i2, i3]:
+                                    node.rates[parentGenomeNode.allele][i2 * 3 + i3] = 0.0
+                                else:
+                                    node.rates[parentGenomeNode.allele][i2 * 3 + i3] = self.omegas[node.genomePos[0]] * \
+                                                                                       self.mutMatrix[nuc1][nuc2] * \
+                                                                                       self.gammaRates[pos2] / self.norm
+                            else:
+                                node.rates[parentGenomeNode.allele][i2 * 3 + i3] = self.mutMatrix[nuc1][nuc2] * \
+                                                                                   self.gammaRates[pos2] / self.norm
+                        if self.hyperCategories[pos2] > 0:
+                            if node.hyper[i2][0] == nuc1:
+                                node.rates[parentGenomeNode.allele][i2 * 3 + node.hyper[i2][1]] *= self.hyperMutRates[
+                                    self.hyperCategories[pos2] - 1]
+                        for i3 in range3:
+                            node.rates[parentGenomeNode.allele][9] += node.rates[parentGenomeNode.allele][i2 * 3 + i3]
+                parentGenomeNode.rate = node.rates[parentGenomeNode.allele][9]
+                if self.verbose:
+                    print(f" new rate {parentGenomeNode.rate} all rates:")
+                    print(node.rates[parentGenomeNode.allele])
+            else:
+                j=mutEvent[2]
+                #j=self.alleles[mutEvent[2]]
+                #j = self.sampleMutation(a, node.rates[a], rand)
+                #mutEvent = [node.genomePos[0], a, j]
+                if self.verbose:
+                    print(f"Forced Mutation from {a} to {j},"
+                          f" position {node.genomePos[0]}"
+                          f" category rate {self.gammaRates[node.genomePos[0]]}"
+                          f" hyperCat {self.hyperCategories[node.genomePos[0]]}"
+                          f" old rate {parentGenomeNode.rate} old rates:")
+                    print(node.rates)
+                #parentGenomeNode.rate = -node.rates[j, j]
+                if self.verbose:
+                    print(" new rate " + str(parentGenomeNode.rate) + " all rates:")
+                    print(node.rates)
+                parentGenomeNode.allele = j
+            #return mutEvent
 
-    def mutateBranchETEhierarchy(self, childNode, parentGenomeNode, level, createNewick):
+        else:
+            # still at an internal genome node.
+            # choose which of the two children genome nodes to move into
+            pos=mutEvent[0]
+            child1Poss=parentGenomeNode.belowNodes[0].refNode.genomePos
+            if self.codon:
+                print("This is implemented, but not allowed right now. The reason is that when using a codon model and input mutation events, the position numbers along the genome need to be adjusted to account for the missing noncoding positions.")
+                exit()
+                if pos>=child1Poss[0]*3 and pos<=(child1Poss[1]*3+2):
+                    parentGenomeNode.rate = parentGenomeNode.belowNodes[1].rate
+                    child = parentGenomeNode.belowNodes[0]
+                    childI = 0
+                else:
+                    parentGenomeNode.rate = parentGenomeNode.belowNodes[0].rate
+                    child = parentGenomeNode.belowNodes[1]
+                    childI = 1
+            else:
+                if pos>=child1Poss[0] and pos<=child1Poss[1]:
+                    parentGenomeNode.rate = parentGenomeNode.belowNodes[1].rate
+                    child = parentGenomeNode.belowNodes[0]
+                    childI = 0
+                else:
+                    parentGenomeNode.rate = parentGenomeNode.belowNodes[0].rate
+                    child = parentGenomeNode.belowNodes[1]
+                    childI = 1
+
+            # if the child we are moving into is not on the same level, but is above,
+            # then create a new child at the same level.
+            # this is because the rate of the child will be inevitably changed by the mutation event,
+            # and we don't want to change the mutation rates for the parent phylogenetic node.
+            if child.level < level:
+                newChild = genomeNode(level=level)  # upNode=parentGenomeNode
+                parentGenomeNode.belowNodes[childI] = newChild
+                newChild.isTerminal = child.isTerminal
+                newChild.refNode=child.refNode
+                if child.isTerminal:
+                    #newChild.refNode = child.refNode
+                    newChild.allele = child.allele
+                else:
+                    newChild.belowNodes = list(child.belowNodes)
+
+                self.applyMutation(newChild, level, mutEvent)
+                #mutEvent = self.findPos(rand, newChild, level)
+                parentGenomeNode.rate += newChild.rate
+            else:
+                # in this case the child is already on the same level, so no need to create another one, just update its mutation rate.
+                #mutEvent = self.findPos(rand, child, level)
+                self.applyMutation(child, level, mutEvent)
+                parentGenomeNode.rate += child.rate
+            #return mutEvent
+
+    def mutateBranchETEhierarchy(self, childNode, parentGenomeNode, level, createNewick,preMutationsBranches):
         # Function to simulate evolution on one branch,using ETE tree structure
         # and using the genome-wide hierarchy structure.
         # given details of the parent node, it generates details of the child node, and updates the hierarchy accordingly.
@@ -765,16 +922,36 @@ class GenomeTree_hierarchical:
         rate = parentGenomeNode.rate
         childNode.mutations = []
 
+        #Go through the input mutation events at the current branch and apply them to the genome tree.
+        if childNode.name in preMutationsBranches:
+            newGenomeNode = genomeNode(level=level)
+            newGenomeNode.belowNodes = list(parentGenomeNode.belowNodes)
+            for m in preMutationsBranches[childNode.name]:
+                pos=m[0]
+                fromA=m[1]
+                toA=m[2]
+                print("applying mutation")
+                mutEvent=[pos-1,self.alleles[fromA],self.alleles[toA]]
+                print(mutEvent)
+                self.applyMutation(newGenomeNode, level, mutEvent)
+                childNode.mutations.append(mutEvent)
+                if createNewick:
+                    childNode.mutAnnotation.append(fromA +str(pos)+ toA)
+            rate = newGenomeNode.rate
+
         # Sample new mutation event with Gillespie algorithm
         currTime += np.random.exponential(scale=1.0 / rate)
         if self.verbose:
             print(f"\n Node {childNode.name} BLen: {bLen} first sampled time: {currTime}; mutation rate: {rate}")
         # for the first mutation event at this node, create a new root genome node of the appropriate level.
         # otherwise, use the one you already have.
-        if currTime < bLen:
+
+        if currTime < bLen and (not (childNode.name in preMutationsBranches)):
+        #if currTime < bLen:
             newGenomeNode = genomeNode(level=level)
             newGenomeNode.belowNodes = list(parentGenomeNode.belowNodes)
-        else:
+        elif (not (childNode.name in preMutationsBranches)):
+        #else:
             newGenomeNode = parentGenomeNode
         while currTime < bLen:
             # Now, sample which type of mutation event it is (from which nucleotide to which nucleotide)
@@ -800,7 +977,7 @@ class GenomeTree_hierarchical:
             print(childNode.mutations)
         # now mutate children of the current node, calling this function recursively on the node children.
         for c in childNode.children:
-            self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick)
+            self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick,preMutationsBranches)
 
 
 
