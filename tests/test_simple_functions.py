@@ -1,4 +1,5 @@
 import pytest
+from pytest import approx
 from types import SimpleNamespace
 import numpy as np
 from ete3 import Tree
@@ -62,7 +63,7 @@ def test_phastSimRun_init_rootGenome():
     assert sim_run.init_substitution_rates()[0][0] == -0.472
 
 def test_phastSimRun_init_gamma_rates():
-
+    np.random.seed(10)
     mock_args = create_standard_mock_arguments()
     mock_args.alpha = 0.1
     
@@ -74,7 +75,8 @@ def test_phastSimRun_init_gamma_rates():
 
     gammaRates = sim_run.init_gamma_rates()
 
-    print(gammaRates)
+    assert next(gammaRates) == approx(0.2286, 0.01)
+
 
 
 def setup_genome_tree():
@@ -91,9 +93,8 @@ def setup_genome_tree():
 
     # set up codon substitution model
     omegas = sim_run.init_codon_substitution_model()
-    gammaRates, omegas = phastSim.check_start_stop_codons(ref=ref, gammaRates=gammaRates, omegas=omegas)
     ins, ins_len, dels, dels_len = sim_run.init_indel_rates()
-    insertion_freqs = sim_run.init_insertion_model()
+    insertion_freqs = sim_run.init_insertion_frequencies()
 
     t = Tree("(A:1,(B:1,(E:1,D:1):0.5):0.5);")
     print(t)
@@ -137,7 +138,6 @@ def test_GenomeTree_hierarchical_initialises_without_indels():
 
     # set up codon substitution model
     omegas = sim_run.init_codon_substitution_model()
-    gammaRates, omegas = phastSim.check_start_stop_codons(ref=ref, gammaRates=gammaRates, omegas=omegas)
 
 
     genome_tree = phastSim.GenomeTree_hierarchical(
@@ -160,17 +160,20 @@ def test_GenomeTree_hierarchical_initialises_without_indels():
         verbose=True
     )    
 
-    genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
-    genome_tree.normalize_rates(scale=1)
-    #print(genome_tree)
+    genome_tree.populate_genome_tree()
+    genome_tree.check_start_stop_codons()
+    genome_tree.normalize_rates()
+    print(genome_tree)
 
 def test_GenomeTree_hierarchical_initialises():
 
     genome_tree = setup_genome_tree()
 
-    genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
+    genome_tree.populate_genome_tree()
     print(genome_tree)
-    genome_tree.normalize_rates(scale=1)
+    genome_tree.check_start_stop_codons()
+    print(genome_tree)
+    genome_tree.normalize_rates()
     print(genome_tree)
 
 def test_genomeTree_hierarchical_findPos_without_indels():
@@ -181,8 +184,8 @@ def test_genomeTree_hierarchical_findPos_single_deletion():
 
     genome_tree = setup_genome_tree()
 
-    genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
-    genome_tree.normalize_rates(scale=1)
+    genome_tree.populate_genome_tree()
+    genome_tree.normalize_rates()
 
     print(genome_tree)
     # these initial conditions should produce a deletion
@@ -190,28 +193,29 @@ def test_genomeTree_hierarchical_findPos_single_deletion():
     newGenomeNode.belowNodes = list(genome_tree.genomeRoot.belowNodes)
     mutation = genome_tree.findPos(0.2566, newGenomeNode, level=1)
     print(newGenomeNode)
-    print(mutation.data, mutation.genomePos, mutation.mType)
-    genome_tree.deleteNodes(0.2566, newGenomeNode, mutation.data["length"], level=1)
+    print(mutation.length, mutation.insertionPos, mutation.genomePos, mutation.mType)
+    genome_tree.deleteNodes(0.2566, newGenomeNode, mutation.length, level=1)
     print(newGenomeNode)
 
 def test_genomeTree_hierarchical_findPos_single_insertion():
 
     genome_tree = setup_genome_tree()
 
-    genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
-    genome_tree.normalize_rates(scale=1)
+    genome_tree.populate_genome_tree()
+    genome_tree.check_start_stop_codons()
+    genome_tree.normalize_rates()
 
     print(genome_tree)
     print(genome_tree.alleles)
     n = genome_tree.genomeRoot.belowNodes[0].belowNodes[1].belowNodes[0].belowNodes[0] 
-    # this is a terminal node otherwise the test doesn't really make sense
+    # assert that this is a terminal node otherwise the test doesn't really make sense
     assert n.isTerminal
 
-    mutation, subtree = genome_tree.sampleInsertion(rate=0.8, node=n, rand=0.3, level=1)
+    mutation = genome_tree.sampleInsertion(rate=0.8, node=n, rand=0.3, level=1)
 
     print(mutation)
     
-    print(subtree)
+    print(n)
 
 def test_genomeTree_hierarchical_findPos_single_deletion_codon_model():
     pass

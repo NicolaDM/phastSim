@@ -55,7 +55,6 @@ hyperCategories = sim_run.init_hypermutation_rates()
 # set up codon substitution model
 if sim_run.args.codon:
 	omegas = sim_run.init_codon_substitution_model()
-	gammaRates, omegas = phastSim.check_start_stop_codons(ref=ref, gammaRates=gammaRates, omegas=omegas)
 else:
 	omegas = None
 
@@ -133,13 +132,16 @@ if hierarchy:
 	print("Total time after initializing: " + str(time2))
 	
 	# populate the GenomeTree
-	genome_tree.populateGenomeTree(node=genome_tree.genomeRoot)
+	genome_tree.populateGenomeTree()
 	
 	time2 = time.time() - start
 	print("Total time after populating tree: " + str(time2))
 
-	# normalize all rates
-	genome_tree.normalize_rates(scale=sim_run.args.scale)
+	# check start and stop codons and normalize all rates
+	if genome_tree.codon:
+		genome_tree.check_start_stop_codon()
+	
+	genome_tree.normalize_rates()
 	
 	time2 = time.time() - start
 	print("Total time after normalizing: " + str(time2))
