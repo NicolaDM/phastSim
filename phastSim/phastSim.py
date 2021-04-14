@@ -1157,63 +1157,125 @@ class GenomeTree_hierarchical:
             self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick)
 
 
+    def getAbsoluteCoords(self, mut, mutDict, insertionDict):
+        """
+        refPos - the position on the reference that this mut appears on. 
+        offset - if the mutation is nested inside another mutation, or not at the start of a series of mutations, 
+        the it may have a non-zero offset, referring to how far along the mutation is inside another already existing mutation. 
+        """
+        if mut.insertionPos:
+            refPos = insertionDict[mut.insertionPos]
+            for offset, coords in enumerate(mutDict[refPos][2]):
+                if (mut.insertionPos, mut.genomePos) == coords:
+                    return refPos, offset
+            
+            return mut.refPos, mut.offset
+        else:
+            return mut.genomePos, 0
+
+
     def writeGenomeShortIndels(self, node, file, mutDict, insertionDict):
+        """
+        This whole function is overly complicated and potentially could be quite slow. 
+        The aim is to 'collapse' all of the (possibly overlapping / nested) indels and substitutions
+        into a concise format. 
+
+        Any advice on how to avoid all this complicated work (either by simplifying the code or deciding on
+        a different but still unambiguous output format) is appreciated!
+        """
         
+
         # flatten the mutDict + node.mutations into a more concise format, and save indels in insertionDict
         for m in node.mutations:
 
-            if not m.insertionPos:
-                if m.genomePos in mutDict:
-                    # case 1 - merge new mutation with existing mutations
-                    if m.mType == mType.INS:
-                        # the starting nucleotide is either a blank (edge case) or the first character of the source in the mutDict
-                        start_nuc = ("" if m.genomePos == -1 else mutDict[m.genomePos][0][0])
-                        remaining_nucs = 0
-                        mutDict[m.genomePos][1] = start_nuc + m.target + remaining_nucs
+            # find the 'absolute' coordinate of the mutation i.e. where it lives relative to the 
+            # already existing mutations in the mutDict. 
+            refPos, offset = self.getAbsoluteCoords(m, mutDict, insertionDict)
 
-                        # two cases - either are prepending to existing insertion positions or starting a new list of insertion positions
-                        if remaining_nucs:
-                            pass
-                        else:
-                            mutDict[m.genomePos][2].append([(m.insertionPos, m.genomePos + offset) for offset in range(len(m.target))])
+            if m.mType == mType.SUB:
 
-                        
-                        insertionDict[m.index] = m.genomePos
-                    elif m.mType == mType.DEL:
-                        pass
-                    else:
-                        pass
+                if refPos in mutDict:
+                    mutDict[refPos][1][offset] = m.target
+
+                    # if the substitution has exactly reversed a previous substitution then we can delete it
+                    if mutDict[refPos][1] == self.ref[refPos] and (m.insertionPos, m.genomePos) == (0, refPos):
+                        del mutDict[refPos]
+
                 else:
-                    # case 2 - add new mutation to the dictionary - this is the simplest case
-                    if m.mType == mType.INS:
-                        start_nuc = ("" if m.genomePos == -1 else self.ref[m.genomePos]) # G AAAG
-                        mutDict[m.genomePos] = (start_nuc, start_nuc + m.target)
-                        insertionDict[m.index] = m.genomePos
+                    mutDict[refPos] = (self.ref[refPos], m.target, [(m.insertionPos, m.genomePos)])
 
-                    elif m.mTYPE == mType.DEL:
-                        start_nuc = ("" if m.genomePos == -1 else self.ref[m.genomePos])
-                        mutDict[m.genomePos] = (start_nuc + m.source, start_nuc) # 123: (ACCCT, A)
+            elif m.mType == mType.INS:
 
-                    else: # substitution
-                        mutDict[m.genomePos] = (self.allelesList[m.source], self.allelesList[m.target])
+                # add the insertion to the insertion dictionary
+                insertionDict[m.index] = refPos
 
-            # If the mutation is nested then we have to find it in a more tedious manner. 
-            # The assumption is that nested insertions occur relatively infrequently are are relatively short.
-            # If there are lots of long nested insertions compared to the reference starting genome, then this
-            # method will be very slow, and we would need to optimize this method. 
+                if refPos in mutDict:
+                    # record the indices i.e. the relative genome coordinates of the existing data
+                    indices = mutDict[refPos][2]
+                    target = mutDict[refPos][1]
+
+                    # the new data is comprised of: original, new insertion, new indices of genome
+                    mutDict[refPos] = (mutDict[refPos][0], 
+                                       target[:offset] + m.target + target[offset:], 
+                                       indices.insert(offset, [(m.index, i) for i in range(len(m.target))]))
+                
+                else:
+                    # deal with an edge case where we are at the -1 genome position i.e. right at the start of the genome
+                    first_symbol = (self.ref[refPos] if refPos != -1 else "")
+                    mutDict[refPos] = (first_symbol,
+                                       first_symbol + m.target,
+                                       [(m.insertionPos, m.genomePos)] + [(m.index, i) for i in range(len(m.target))])
+
+            # deletion - this is the most difficult case
             else:
-                # case 3 - the mutation has occurred inside another insertion, we need to find where that is w.r.t. the reference
 
-                abs_genomePos = insertionDict[m.insertionPos]
+                # store the position that were deleted so that later on they can be put back
+                m.deletedPositions = []
 
-                if m.genomePos in mutDict:
-                    # case 1 - merge new mutation with existing mutations
-                    if m.mType == mType.INS:
-                        pass
-                    elif m.mType == mType.DEL:
-                        pass
-                    else:
-                        pass
+                # store these variables on the mutation - they are needed so that we know where to start un-deleting
+                m.refPos = refPos
+                m.offset = offset
+                
+                # initialise the mutation if it's not already listed in the dictionary
+                if not refPos in mutDict:
+                    mutDict[refPos] = (m.source[0], m.source[0], [(m.insertionPos, m.genomePos)])
+
+                # need to deal with the deletion one symbol at a time
+                i = 0
+                for _ in m.source:
+
+                    # add next symbol in buffer
+                    if offset == len(mutDict[refPos][2]):
+
+                        i += 1
+                        if refPos + i in mutDict:
+
+                            mutDict[refPos][0] += mutDict[refPos + i][0] 
+                            mutDict[refPos][1] += mutDict[refPos + i][1]
+                            mutDict[refPos][2] += mutDict[refPos + i][2]
+
+                            # after this concatenation, some insertions may have moved about so need to correct for this
+                            for k, v in insertionDict.items():
+                                if v == refPos + i:
+                                    insertionDict[k] = refPos
+                                    
+                            del mutDict[refPos + i]
+
+                        else:
+                            mutDict[refPos][0] += self.ref[refPos + i]
+                            mutDict[refPos][1] += self.ref[refPos + i]
+                            mutDict[refPos][2] += (0, refPos + i)
+
+                    # add the deleted position to the mutation data so it can be un-deleted later
+                    m.deletedPositions.append(mutDict[refPos][2][offset])
+
+                    # remove symbols in the target mutation starting from the offset position
+                    mutDict[refPos][1] = mutDict[refPos][1][:offset] + mutDict[refPos][1][offset+1]
+                    mutDict[refPos][2] = mutDict[refPos][2][:offset] + mutDict[refPos][2][offset+1]
+
+
+
+
 
 
         # print leaf entry to file
@@ -1222,13 +1284,53 @@ class GenomeTree_hierarchical:
 
             for pos, m in mutDict.items():
                 file.write(f"{m[0]}{pos+1}{m[1]}\n")
-        # pass data to children
 
+        # pass data to children
         else:
             for c in node.children:
                 self.writeGenomeShortNoIndels(c, file, mutDict, insertionDict)
 
         # de-update the list so it can be used by siblings etc.
+        # we need to do everything in the first part but backwards - terrific
+        for m in reversed(node.mutations):
+
+            refPos, offset = self.getAbsoluteCoords(m, mutDict, insertionDict)
+
+            if m.mType == mType.SUB:
+
+                if refPos in mutDict:
+                    mutDict[refPos][1][offset] = m.source
+
+                    # if the substitution has exactly reversed a previous substitution then we can delete it
+                    if mutDict[refPos][1] == self.ref[refPos] and (m.insertionPos, m.genomePos) == (0, refPos):
+                        del mutDict[refPos]
+
+                else:
+                    mutDict[refPos] = (self.ref[refPos], m.source, [(m.insertionPos, m.genomePos)])
+
+            elif m.mType == mType.INS:
+
+                # de-update an insertion by removing it from the insertion dictionary 
+                # and also removing any reference to it in the mutDict
+                del insertionDict[m.index]
+                insertionLength = len(m.target)
+
+                # remove the insertion
+                mutDict[refPos][1] = mutDict[refPos][1][:offset] + mutDict[refPos][1][offset + insertionLength:]
+                mutDict[refPos][2] = mutDict[refPos][2][:offset] + mutDict[refPos][2][offset + insertionLength:]
+
+                # if the de-updated mutation is now identical to the reference genome then delete the dictionary item
+                if mutDict[refPos][0] == mutDict[refPos][1] and mutDict[refPos][2] == [(0, refPos)]:
+                    del mutDict[refPos]
+
+            # deletion - this is the more difficult case - we need to put back everything that had been deleted. 
+            # this may mean putting back an arbitrary string of insertions and substitutions
+            else:
+                source, target, indices = "", "", []
+                for insertionPos, genomePos in m.deletedPositions:
+                    # every time mutations were merged together by a deletion, they now need to be broken back up.
+                    # What a pain!
+                    pass
 
                   
 
