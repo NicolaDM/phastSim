@@ -296,7 +296,7 @@ class phastSimRun:
         invariable = self.args.invariable
         if invariable >= 0.000000001:
             print(f"Proportion of invariable {invariable}")
-            categoriesInv = np.random.choice(2, p=[1.0 - invariable, invariable])
+            categoriesInv = (np.random.choice(2, p=[1.0 - invariable, invariable]) for _ in count())
             gammaRates = (0.0 if c else g for (c,g) in zip(categoriesInv, gammaRates))
 
         return gammaRates
@@ -561,7 +561,7 @@ class GenomeTree_hierarchical:
                     node.deletionLength = 0.0
                     node.rate = 0.0 
                     node.allele = -1
-                    node.rates = np.empty(0)
+                    node.rates = np.zeros(1)
                     return
             
                 # set the deletion rates of the (non-lead-character) node
@@ -576,7 +576,7 @@ class GenomeTree_hierarchical:
                     node.omega = 0.0
                     if (pos < self.nTerminalNodes - 1):
                     	print(f"Warning: stop codon in the middle of the reference {pos * 3 + 1}"
-                          f" {self.ref[pos * 3:(pos + 1) * 3]}."
+                          f" {ref[pos * 3:(pos + 1) * 3]}."
                           f"Continuing simulations but setting omega=0 for this position.")
 
 
@@ -823,12 +823,12 @@ class GenomeTree_hierarchical:
             if node.allele == -1:
                 # nodes with this allele are 'empty' symbols and cannot/ should not count as being deleted
                 return 0, ""
-            
+
+            deleted_string = (self.codonAllelesList[node.allele] if self.codon else self.allelesList[node.allele])
             node.allele = -1
             node.rate = 0.0
             node.insertionRate = 0.0
             node.deletionRate = 0.0
-            deleted_string = (self.codonAllelesList[node.allele] if self.codon else self.allelesList[node.allele])
             return 1, deleted_string
         
         else:
@@ -840,6 +840,7 @@ class GenomeTree_hierarchical:
 
             # deal with the left child
             deleted_leaves_left = 0
+            deleted_string_left = ""
             if rand > rate0 or remaining_deletions == 0:
                 # under these conditions we can short circuit and ignore this whole branch
                 pass
@@ -862,6 +863,7 @@ class GenomeTree_hierarchical:
 
             # deal with right child but with slightly different exit conditions
             deleted_leaves_right = 0
+            deleted_string_right = ""
             if rand > rate0 + rate1 or remaining_deletions - deleted_leaves_left == 0:
                 # can short circuit this child under slightly different conditions
                 pass
@@ -911,7 +913,7 @@ class GenomeTree_hierarchical:
         genomeSeq = "".join(insertion)
         # generate the genome tree of this insert from (node, genomeSeq)
         new_subtree_root = genomeNode(level=level)
-        self.populateGenomeTree(new_subtree_root, insertion, 0, insertion_length-1)
+        self.populateGenomeTree(new_subtree_root, genomeSeq, 0, insertion_length-1)
         self.normalizeRates(new_subtree_root)
 
         # build a bigger tree of the form node = (node_copied, subTree). 
@@ -926,10 +928,14 @@ class GenomeTree_hierarchical:
         node.isTerminal = False       
         node.level = node_copied.level
         node.rate = node_copied.rate + new_subtree_root.rate
+        
+        pos = node_copied.refNode.genomePos
+        if self.codon:
+            pos = 3*pos + 2
 
         mutEvent = mutation(
                     mType=mType.INS, 
-                    genomePos=node_copied.refNode.genomePos, 
+                    genomePos=pos, 
                     insertionPos=node_copied.refNode.insertionPos, 
                     source="",
                     target=genomeSeq, 
@@ -952,10 +958,12 @@ class GenomeTree_hierarchical:
 
                     attempted_deletion_length = self.sampleDeletion(node.deletionLength, rand/node.deletionRate)
                     pos = node.genomePos
-                    deleted_string = self.alleleList[node.allele] + "?"*(attempted_deletion_length)
+                    deleted_string = ((self.codonAllelesList[node.allele] if self.codon else self.allelesList[node.allele])
+                                         + "?" * (attempted_deletion_length - 1) * (3 if self.codon else 1))
+
                     mutEvent = mutation(
                                 mType=mType.DEL, 
-                                genomePos=pos, 
+                                genomePos=(3 if self.codon else 1) * pos, 
                                 insertionPos=node.insertionPos, 
                                 source=deleted_string, 
                                 target="", 
@@ -995,7 +1003,7 @@ class GenomeTree_hierarchical:
                             target=self.allelesList[newindices[i2]])
 
                 if self.indels:
-                    mutation.insertionPos = node.insertionPos
+                    mutEvent.insertionPos = node.insertionPos
 
                 if self.verbose:
                     print(f"Mutation from {a} {self.codonAllelesList[a]} "
@@ -1138,6 +1146,9 @@ class GenomeTree_hierarchical:
                 mutEvent.length = length_deleted
                 mutEvent.source = string_deleted
 
+                if self.verbose:
+                    print(f"Deletion occurred: {mutEvent.source} at coordinates ({mutEvent.insertionPos},{mutEvent.genomePos})")
+
             childNode.mutations.append(mutEvent)
             if createNewick:
                 childNode.mutAnnotation.append(str(mutEvent))
@@ -1147,11 +1158,11 @@ class GenomeTree_hierarchical:
             currTime += np.random.exponential(scale=1.0 / rate)
             if self.verbose:
                 print(f"new time {currTime}, rate {rate} mutation events:")
-                print(childNode.mutations)
+                print([str(m) for m in childNode.mutations])
 
         if self.verbose:
             print("mutations at the end:")
-            print(childNode.mutations)
+            print([str(m) for m in childNode.mutations])
         # now mutate children of the current node, calling this function recursively on the node children.
         for c in childNode.children:
             self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick)
@@ -1161,15 +1172,15 @@ class GenomeTree_hierarchical:
         """
         refPos - the position on the reference that this mut appears on. 
         offset - if the mutation is nested inside another mutation, or not at the start of a series of mutations, 
-        the it may have a non-zero offset, referring to how far along the mutation is inside another already existing mutation. 
+        then it may have a non-zero offset, referring to how far along the mutation is inside another already existing mutation. 
         """
         if mut.insertionPos:
+            
             refPos = insertionDict[mut.insertionPos]
             for offset, coords in enumerate(mutDict[refPos][2]):
                 if (mut.insertionPos, mut.genomePos) == coords:
                     return refPos, offset
-            
-            return mut.refPos, mut.offset
+
         else:
             return mut.genomePos, 0
 
@@ -1182,6 +1193,30 @@ class GenomeTree_hierarchical:
 
         Any advice on how to avoid all this complicated work (either by simplifying the code or deciding on
         a different but still unambiguous output format) is appreciated!
+
+        mutDict = {
+            position: (original nuc, mutated nucs, list of the coordinates of the new nuc),
+
+            1: (A, -AATTTG, [(0,1), (2,0), (2,1),(5, 0), (5,1), (5,2), (2,2)])
+
+            123: (ATT, "", [])
+
+            456: (A, G, [(0, 456)])
+        }
+
+        insertionDict = {
+            2: 1
+            5: 1
+        }
+
+        (2, 1) -> refPos = 1, offset = 2
+
+        (0, 123) -> refPos = 0, offset = 123
+        
+        mutation(source = "", target = T, insertionPos = 0, genomePos = 123, [index = 6])
+
+        mutation(source = AAAAA, target = "", insertionPos = 0, genomePos = 234)
+
         """
         
 
@@ -1195,14 +1230,15 @@ class GenomeTree_hierarchical:
             if m.mType == mType.SUB:
 
                 if refPos in mutDict:
-                    mutDict[refPos][1][offset] = m.target
+                    target = mutDict[refPos][1]
+                    mutDict[refPos][1] = target[:offset] + m.target + target[offset+1:]
 
                     # if the substitution has exactly reversed a previous substitution then we can delete it
-                    if mutDict[refPos][1] == self.ref[refPos] and (m.insertionPos, m.genomePos) == (0, refPos):
+                    if mutDict[refPos][1] == self.ref[refPos]:
                         del mutDict[refPos]
 
                 else:
-                    mutDict[refPos] = (self.ref[refPos], m.target, [(m.insertionPos, m.genomePos)])
+                    mutDict[refPos] = [self.ref[refPos], m.target, [(m.insertionPos, m.genomePos)]]
 
             elif m.mType == mType.INS:
 
@@ -1213,82 +1249,71 @@ class GenomeTree_hierarchical:
                     # record the indices i.e. the relative genome coordinates of the existing data
                     indices = mutDict[refPos][2]
                     target = mutDict[refPos][1]
+                    
 
                     # the new data is comprised of: original, new insertion, new indices of genome
-                    mutDict[refPos] = (mutDict[refPos][0], 
-                                       target[:offset] + m.target + target[offset:], 
-                                       indices.insert(offset, [(m.index, i) for i in range(len(m.target))]))
+                    mutDict[refPos] = [mutDict[refPos][0], 
+                                       target[:offset+1] + m.target + target[offset+1:],
+                                       indices[:offset+1] + [(m.index, i) for i in range(len(m.target))] + indices[offset+1:]]
                 
                 else:
                     # deal with an edge case where we are at the -1 genome position i.e. right at the start of the genome
                     first_symbol = (self.ref[refPos] if refPos != -1 else "")
-                    mutDict[refPos] = (first_symbol,
+                    mutDict[refPos] = [first_symbol,
                                        first_symbol + m.target,
-                                       [(m.insertionPos, m.genomePos)] + [(m.index, i) for i in range(len(m.target))])
+                                       [(m.insertionPos, m.genomePos)] + [(m.index, i) for i in range(len(m.target))]]
 
             # deletion - this is the most difficult case
             else:
 
-                # store the position that were deleted so that later on they can be put back
+                # need to deal with the deletion one symbol at a time
+                deletedChars = 0
                 m.deletedPositions = []
 
-                # store these variables on the mutation - they are needed so that we know where to start un-deleting
-                m.refPos = refPos
-                m.offset = offset
-                
-                # initialise the mutation if it's not already listed in the dictionary
-                if not refPos in mutDict:
-                    mutDict[refPos] = (m.source[0], m.source[0], [(m.insertionPos, m.genomePos)])
+                while (deletedChars < len(m.source)):
 
-                # need to deal with the deletion one symbol at a time
-                i = 0
-                for _ in m.source:
+                    # initialise the mutation if it's not already listed in the dictionary
+                    if (not refPos in mutDict):
+                        mutDict[refPos] = [self.ref[refPos], self.ref[refPos], [(0, refPos)]]
+                    
 
-                    # add next symbol in buffer
-                    if offset == len(mutDict[refPos][2]):
+                    # skip blank characters
+                    if mutDict[refPos][1][offset] != "-":
+                        
+                        # remove symbols in the target mutation starting from the offset position
+                        mutDict[refPos][1] = mutDict[refPos][1][:offset] + "-" + mutDict[refPos][1][offset+1:]
+                        deletedChars += 1
+                        m.deletedPositions.append(mutDict[refPos][2][offset])
 
-                        i += 1
-                        if refPos + i in mutDict:
-
-                            mutDict[refPos][0] += mutDict[refPos + i][0] 
-                            mutDict[refPos][1] += mutDict[refPos + i][1]
-                            mutDict[refPos][2] += mutDict[refPos + i][2]
-
-                            # after this concatenation, some insertions may have moved about so need to correct for this
-                            for k, v in insertionDict.items():
-                                if v == refPos + i:
-                                    insertionDict[k] = refPos
-                                    
-                            del mutDict[refPos + i]
-
-                        else:
-                            mutDict[refPos][0] += self.ref[refPos + i]
-                            mutDict[refPos][1] += self.ref[refPos + i]
-                            mutDict[refPos][2] += (0, refPos + i)
-
-                    # add the deleted position to the mutation data so it can be un-deleted later
-                    m.deletedPositions.append(mutDict[refPos][2][offset])
-
-                    # remove symbols in the target mutation starting from the offset position
-                    mutDict[refPos][1] = mutDict[refPos][1][:offset] + mutDict[refPos][1][offset+1]
-                    mutDict[refPos][2] = mutDict[refPos][2][:offset] + mutDict[refPos][2][offset+1]
-
-
-
-
-
+                    # move to next symbol
+                    offset += 1
+                    if offset == len(mutDict[refPos][1]):
+                        offset = 0
+                        refPos += 1
+                        
 
         # print leaf entry to file
         if node.is_leaf():
             file.write(">" + node.name + "\n")
+            # TODO REMOVE THESE COMMENTS!
+            if self.verbose:
+                print(">" + node.name)
+                            
+            mutList = list(mutDict.keys())
+            mutList.sort()
 
-            for pos, m in mutDict.items():
+            for pos in mutList:
+                m = mutDict[pos]
                 file.write(f"{m[0]}{pos+1}{m[1]}\n")
+                # TODO REMOVE THIS!
+                if self.verbose:
+                    if m[1] == "-" or len(m[1]) > 1:
+                        print(f"{m[0]}{pos+1}{m[1]}: debug {m}")
 
         # pass data to children
         else:
             for c in node.children:
-                self.writeGenomeShortNoIndels(c, file, mutDict, insertionDict)
+                self.writeGenomeShortIndels(c, file, mutDict, insertionDict)
 
         # de-update the list so it can be used by siblings etc.
         # we need to do everything in the first part but backwards - terrific
@@ -1299,14 +1324,15 @@ class GenomeTree_hierarchical:
             if m.mType == mType.SUB:
 
                 if refPos in mutDict:
-                    mutDict[refPos][1][offset] = m.source
+                    target = mutDict[refPos][1]
+                    mutDict[refPos][1] = target[:offset] + m.source + target[offset+1:]
 
                     # if the substitution has exactly reversed a previous substitution then we can delete it
-                    if mutDict[refPos][1] == self.ref[refPos] and (m.insertionPos, m.genomePos) == (0, refPos):
+                    if mutDict[refPos][1] == self.ref[refPos]:
                         del mutDict[refPos]
 
                 else:
-                    mutDict[refPos] = (self.ref[refPos], m.source, [(m.insertionPos, m.genomePos)])
+                    mutDict[refPos] = [self.ref[refPos], m.source, [(m.insertionPos, m.genomePos)]]
 
             elif m.mType == mType.INS:
 
@@ -1316,21 +1342,40 @@ class GenomeTree_hierarchical:
                 insertionLength = len(m.target)
 
                 # remove the insertion
-                mutDict[refPos][1] = mutDict[refPos][1][:offset] + mutDict[refPos][1][offset + insertionLength:]
-                mutDict[refPos][2] = mutDict[refPos][2][:offset] + mutDict[refPos][2][offset + insertionLength:]
+                mutDict[refPos][1] = mutDict[refPos][1][:offset + 1] + mutDict[refPos][1][offset + insertionLength + 1:]
+                mutDict[refPos][2] = mutDict[refPos][2][:offset + 1] + mutDict[refPos][2][offset + insertionLength + 1:]
 
                 # if the de-updated mutation is now identical to the reference genome then delete the dictionary item
-                if mutDict[refPos][0] == mutDict[refPos][1] and mutDict[refPos][2] == [(0, refPos)]:
+                if mutDict[refPos][0] == mutDict[refPos][1]:
                     del mutDict[refPos]
 
             # deletion - this is the more difficult case - we need to put back everything that had been deleted. 
             # this may mean putting back an arbitrary string of insertions and substitutions
             else:
-                source, target, indices = "", "", []
-                for insertionPos, genomePos in m.deletedPositions:
-                    # every time mutations were merged together by a deletion, they now need to be broken back up.
-                    # What a pain!
-                    pass
+
+
+                # need to deal with the deletion one symbol at a time
+                deletedChars = 0
+                while (deletedChars < len(m.source)):
+
+                    # a deletion may have skipped characters (other nested deletions)
+                    # we need to make sure we only 'un-delete' the correct characters
+                    if mutDict[refPos][2][offset] == m.deletedPositions[deletedChars]:
+                        
+                        # insert back symbols in the target mutation
+                        mutDict[refPos][1] = mutDict[refPos][1][:offset] + m.source[deletedChars] + mutDict[refPos][1][offset+1:]
+                        deletedChars += 1
+
+                    # move to next symbol
+                    offset += 1
+                    if offset == len(mutDict[refPos][1]):
+                        offset = 0
+                        
+                        # remove 'null' deletions
+                        if mutDict[refPos][0] == mutDict[refPos][1]:
+                            del mutDict[refPos]
+
+                        refPos += 1
 
                   
 
@@ -1373,7 +1418,8 @@ class GenomeTree_hierarchical:
         
         # call the recursive function - there are two depending on whether or not indels are present
         if self.indels:
-            self.writeGenomeShortIndels(node=tree, file=genomefile, mutDict=mutDict)
+            insertionDict = {}
+            self.writeGenomeShortIndels(node=tree, file=genomefile, mutDict=mutDict, insertionDict=insertionDict)
         else:
             self.writeGenomeShortNoIndels(node=tree, file=genomefile, mutDict=mutDict)
         genomefile.close()
@@ -1410,9 +1456,10 @@ class GenomeTree_hierarchical:
         # convert reference list to an array
         #refList = np.array(refList)
         if self.indels:
-            insertionRefList, insertionPositions = self.getAllInsertions(tree)
+            #insertionRefList, insertionPositions = self.getAllInsertions(tree)
             # TODO - not sure if this should be (0,0), what about the -1st site corresponding to the start of the genome? Maybe this should be -2?
-            self.writeGenomeIndels(tree, file, [refList] + insertionRefList, [(0, 0)] + insertionPositions)
+            #self.writeGenomeIndels(tree, file, [refList] + insertionRefList, [(0, 0)] + insertionPositions)
+            pass
         else:
             self.writeGenomeNoIndels(tree, file, refList)
         file.close()
@@ -1441,7 +1488,10 @@ class GenomeTree_hierarchical:
         file = open(output_path + output_file + ".phy", "w")
         file.write("\t" + str(len(tree)) + "\t" + str(len(self.ref)) + "\n")
         # run the recursive function to write the phylip formatted file
-        self.writeGenomePhylip(node=tree, file=file, nRefList=refList)
+        if self.indels:
+            pass
+        else:
+            self.writeGenomePhylip(node=tree, file=file, nRefList=refList)
         file.close()
 
 
@@ -1591,7 +1641,7 @@ class GenomeTree_vanilla:
         currTime += np.random.exponential(scale=1.0 / rate)
         if self.verbose:
             print(f"\n Node {childNode.name} BLen: {bLen}. Mutations at start:")
-            print(parentMuts)
+            print([str(m) for m in parentMuts])
             print("num alleles at start:")
             print(parentTotAlleles)
             print(f"tot rate at start: {parentRate}")
@@ -1786,11 +1836,11 @@ class GenomeTree_vanilla:
             currTime += np.random.exponential(scale=1.0 / rate)
             if self.verbose:
                 print(f"new time {currTime}, rate {rate} mutation events:")
-                print(childMutations)
+                print([str(m) for m in childMutations])
 
         if self.verbose:
             print("mutations at the end:")
-            print(childMutations)
+            print([str(m) for m in childMutations])
         childNode.mutations = childMutations
         # now mutate children of the current node, calling this function recursively on the node children.
         for c in childNode.children:
@@ -1927,11 +1977,11 @@ class mutation:
 
     def __str__(self):
         string = "" 
-        if getattr(self, "insertionPos"):
-            string += str(self.insertionPos) + "-"
-        string += str(self.genomePos + 1) + "-" + self.source + "-" + self.target
+        if getattr(self, "insertionPos", 0):
+            string += str(self.insertionPos) + ", "
+        string += str(self.genomePos + 1) + ", " + self.source + ", " + self.target
         if self.mType == mType.INS:
-            string += ("-" + str(self.index))
+            string += (", " + str(self.index))
         return string
 
 

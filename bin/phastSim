@@ -65,12 +65,12 @@ if not hierarchy and sim_run.args.indels:
 	exit()
 
 # set up arguments for indel model
-insertion_rates, insertion_length, insertion_frequencies, deletion_rates, deletion_lengths = [], [], [], [], []
+insertion_rates, insertion_lengths, insertion_frequencies, deletion_rates, deletion_lengths = [], [], [], [], []
 
 if sim_run.args.indels:
 
-	insertion_rates, insertion_length, deletion_rates, deleltion_length = sim_run.init_indel_rates()
-	insertion_frequencies = sim_run.init_insertion_model()
+	insertion_rates, insertion_lengths, deletion_rates, deletion_lengths = sim_run.init_indel_rates()
+	insertion_frequencies = sim_run.init_insertion_frequencies()
 
 
 
@@ -120,7 +120,7 @@ if hierarchy:
 		hyperMutRates=sim_run.args.hyperMutRates,
 		indels=sim_run.args.indels,
 		insertionRate=insertion_rates,
-		insertionLength=insertion_length,
+		insertionLength=insertion_lengths,
 		insertionFrequencies=insertion_frequencies,
 		deletionRate=deletion_rates, 
 		deletionLength=deletion_lengths,
@@ -132,14 +132,14 @@ if hierarchy:
 	print("Total time after initializing: " + str(time2))
 	
 	# populate the GenomeTree
-	genome_tree.populateGenomeTree()
+	genome_tree.populate_genome_tree()
 	
 	time2 = time.time() - start
 	print("Total time after populating tree: " + str(time2))
 
 	# check start and stop codons and normalize all rates
 	if genome_tree.codon:
-		genome_tree.check_start_stop_codon()
+		genome_tree.check_start_stop_codons()
 	
 	genome_tree.normalize_rates()
 	
