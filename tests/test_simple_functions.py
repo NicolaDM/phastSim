@@ -2,7 +2,7 @@ import pytest
 from pytest import approx
 from types import SimpleNamespace
 import numpy as np
-from ete3 import Tree
+from ete3 import Tree, TreeNode
 from phastSim import phastSim
 
 
@@ -222,3 +222,41 @@ def test_genomeTree_hierarchical_findPos_single_deletion_codon_model():
 
 def test_genomeTree_hierarchical_findPos_single_insertion_codon_model():
     pass
+
+
+def test_printing_functions():
+    
+    genome_tree = setup_genome_tree()
+
+    class MockFile:
+        """
+        A class which has 1 method called write, 
+        so that I can use it as a mock file object in this test.
+        """
+        def __init__(self):
+            self.written_data = ""
+
+        def write(self, string):
+            self.written_data += string
+
+
+    def parameterised_test(mutDict, insertionDict, mutations, expected_output):
+        f = MockFile()
+        node = TreeNode(name="test_node")
+        node.mutations = mutations 
+
+        original_mD = mutDict.copy()
+        original_iD = insertionDict.copy()
+        genome_tree.writeGenomeShortIndels(node=node, file=f, mutDict=mutDict, insertionDict=insertionDict)
+        # the whole point of this function is that the genome tree updates and then de-updates
+        # any mutations. So we need the mutDict and insertionDict to remain the same before and after printing. 
+        assert mutDict == original_mD
+        assert insertionDict == original_iD
+        assert f.written_data == expected_output #
+
+    parameterised_test(
+        mutDict={}, 
+        insertionDict={}, 
+        mutations=[phastSim.mutation(mType=phastSim.mType.DEL, genomePos=4, insertionPos=0, source="GAAT", target="")], 
+        expected_output=">test_node\nGAAT5----\n"
+    )

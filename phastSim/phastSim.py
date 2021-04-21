@@ -1270,44 +1270,87 @@ class GenomeTree_hierarchical:
                 deletedChars = 0
                 m.deletedPositions = []
 
+                appending = False
+                dictPos = refPos
+
                 while (deletedChars < len(m.source)):
 
-                    # initialise the mutation if it's not already listed in the dictionary
-                    if (not refPos in mutDict):
-                        mutDict[refPos] = [self.ref[refPos], self.ref[refPos], [(0, refPos)]]
+                    # we may be appending characters to the current deletion one at a time
+                    if appending:
+                        
+                        # if the next character is already in the dictionary, we must stop appending 
+                        if refPos in mutDict:
+                        
+                            appending = False
+                            
+                            # delete a character if it is non-blank
+                            if mutDict[refPos][1][offset] != "-":
+                                mutDict[refPos][1] = mutDict[refPos][1][:offset] + "-" + mutDict[refPos][1][offset+1:]
+                                deletedChars += 1
+                                m.deletedPositions.append(mutDict[refPos][2][offset])
+                        
+                        # otherwise we can continue appending to the deletion 
+                        else:
+                            
+                            mutDict[dictPos][0] += self.ref[refPos]
+                            mutDict[dictPos][1] += "-"
+                            mutDict[dictPos][2] += [(0, refPos)]
+                            deletedChars += 1
+                            m.deletedPositions.append((0, refPos))
                     
-
-                    # skip blank characters
-                    if mutDict[refPos][1][offset] != "-":
+                    # in this case we are working on an existing deletion, or have just finished doing so
+                    else:
                         
-                        # remove symbols in the target mutation starting from the offset position
-                        mutDict[refPos][1] = mutDict[refPos][1][:offset] + "-" + mutDict[refPos][1][offset+1:]
-                        deletedChars += 1
-                        m.deletedPositions.append(mutDict[refPos][2][offset])
-
-                    # move to next symbol
+                        # a position not ever seen before, we must add it to the dictionary and 
+                        # can append to it
+                        if not dictPos in mutDict:
+                            
+                            mutDict[dictPos] = [self.ref[dictPos], "-", [(0, dictPos)]]
+                            deletedChars += 1
+                            m.deletedPositions.append((0, dictPos))
+                            appending = True
+                            
+                        # delete a character if it is non-blank
+                        else: 
+                            if mutDict[dictPos][1][offset] != "-":
+                                mutDict[dictPos][1] = mutDict[dictPos][1][:offset] + "-" + mutDict[dictPos][1][offset+1:]
+                                deletedChars += 1
+                                m.deletedPositions.append(mutDict[dictPos][2][offset])
+                    
+                    
+                    # now move to the next character
+                    # increment the reference position if we pass it
+                    if mutDict[dictPos][2][offset] == (0, refPos):
+                        refPos += 1  
+                        
+                    # we will change to a new dictionary item if we are not in append mode or are not going to be
                     offset += 1
-                    if offset == len(mutDict[refPos][1]):
-                        offset = 0
-                        refPos += 1
-                        
+                    if offset == len(mutDict[dictPos][2]):
+                        if not appending or (refPos in mutDict):
+                            appending = False
+                            dictPos = refPos
+                            offset = 0
+
 
         # print leaf entry to file
         if node.is_leaf():
             file.write(">" + node.name + "\n")
             # TODO REMOVE THESE COMMENTS!
-            if self.verbose:
-                print(">" + node.name)
+            #if self.verbose:
+            #    print(">" + node.name)
                             
             mutList = list(mutDict.keys())
             mutList.sort()
-
+            first = True
             for pos in mutList:
                 m = mutDict[pos]
                 file.write(f"{m[0]}{pos+1}{m[1]}\n")
                 # TODO REMOVE THIS!
                 if self.verbose:
                     if m[1] == "-" or len(m[1]) > 1:
+                        if first:
+                            print(">" + node.name)
+                            first = False
                         print(f"{m[0]}{pos+1}{m[1]}: debug {m}")
 
         # pass data to children
@@ -1356,8 +1399,9 @@ class GenomeTree_hierarchical:
 
                 # need to deal with the deletion one symbol at a time
                 deletedChars = 0
+                counter = 0
+                
                 while (deletedChars < len(m.source)):
-
                     # a deletion may have skipped characters (other nested deletions)
                     # we need to make sure we only 'un-delete' the correct characters
                     if mutDict[refPos][2][offset] == m.deletedPositions[deletedChars]:
@@ -1367,6 +1411,8 @@ class GenomeTree_hierarchical:
                         deletedChars += 1
 
                     # move to next symbol
+                    if mutDict[refPos][2][offset] == (0, refPos + counter):
+                        counter += 1
                     offset += 1
                     if offset == len(mutDict[refPos][1]):
                         offset = 0
@@ -1375,7 +1421,8 @@ class GenomeTree_hierarchical:
                         if mutDict[refPos][0] == mutDict[refPos][1]:
                             del mutDict[refPos]
 
-                        refPos += 1
+                        refPos += counter
+                        counter = 0
 
                   
 
