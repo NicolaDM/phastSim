@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0fparsimony.proto\x12\tParsimony\"^\n\x03mut\x12\x10\n\x08position\x18\x01 \x01(\x05\x12\x0f\n\x07ref_nuc\x18\x02 \x01(\x05\x12\x0f\n\x07par_nuc\x18\x03 \x01(\x05\x12\x0f\n\x07mut_nuc\x18\x04 \x03(\x05\x12\x12\n\nchromosome\x18\x05 \x01(\t\"1\n\rmutation_list\x12 \n\x08mutation\x18\x01 \x03(\x0b\x32\x0e.Parsimony.mut\"=\n\x0e\x63ondensed_node\x12\x11\n\tnode_name\x18\x01 \x01(\t\x12\x18\n\x10\x63ondensed_leaves\x18\x02 \x03(\t\"*\n\rnode_metadata\x12\x19\n\x11\x63lade_annotations\x18\x01 \x03(\t\"\xa8\x01\n\x04\x64\x61ta\x12\x0e\n\x06newick\x18\x01 \x01(\t\x12\x30\n\x0enode_mutations\x18\x02 \x03(\x0b\x32\x18.Parsimony.mutation_list\x12\x32\n\x0f\x63ondensed_nodes\x18\x03 \x03(\x0b\x32\x19.Parsimony.condensed_node\x12*\n\x08metadata\x18\x04 \x03(\x0b\x32\x18.Parsimony.node_metadatab\x06proto3'
+  serialized_pb=b'\n\x0fparsimony.proto\x12\tParsimony\"\x93\x01\n\x03mut\x12\x10\n\x08position\x18\x01 \x01(\x05\x12\x0f\n\x07ref_nuc\x18\x02 \x03(\x05\x12\x0f\n\x07par_nuc\x18\x03 \x01(\x05\x12\x0f\n\x07mut_nuc\x18\x04 \x03(\x05\x12\x12\n\nchromosome\x18\x05 \x01(\t\x12\x1a\n\x12insertion_position\x18\x06 \x01(\x05\x12\x17\n\x0finsertion_index\x18\x07 \x01(\x05\"1\n\rmutation_list\x12 \n\x08mutation\x18\x01 \x03(\x0b\x32\x0e.Parsimony.mut\"=\n\x0e\x63ondensed_node\x12\x11\n\tnode_name\x18\x01 \x01(\t\x12\x18\n\x10\x63ondensed_leaves\x18\x02 \x03(\t\"*\n\rnode_metadata\x12\x19\n\x11\x63lade_annotations\x18\x01 \x03(\t\"\xa8\x01\n\x04\x64\x61ta\x12\x0e\n\x06newick\x18\x01 \x01(\t\x12\x30\n\x0enode_mutations\x18\x02 \x03(\x0b\x32\x18.Parsimony.mutation_list\x12\x32\n\x0f\x63ondensed_nodes\x18\x03 \x03(\x0b\x32\x19.Parsimony.condensed_node\x12*\n\x08metadata\x18\x04 \x03(\x0b\x32\x18.Parsimony.node_metadatab\x06proto3'
 )
 
 
@@ -42,8 +42,8 @@ _MUT = _descriptor.Descriptor(
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='ref_nuc', full_name='Parsimony.mut.ref_nuc', index=1,
-      number=2, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
+      number=2, type=5, cpp_type=1, label=3,
+      has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
@@ -68,6 +68,20 @@ _MUT = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='insertion_position', full_name='Parsimony.mut.insertion_position', index=5,
+      number=6, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='insertion_index', full_name='Parsimony.mut.insertion_index', index=6,
+      number=7, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -80,8 +94,8 @@ _MUT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=30,
-  serialized_end=124,
+  serialized_start=31,
+  serialized_end=178,
 )
 
 
@@ -112,8 +126,8 @@ _MUTATION_LIST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=126,
-  serialized_end=175,
+  serialized_start=180,
+  serialized_end=229,
 )
 
 
@@ -151,8 +165,8 @@ _CONDENSED_NODE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=177,
-  serialized_end=238,
+  serialized_start=231,
+  serialized_end=292,
 )
 
 
@@ -183,8 +197,8 @@ _NODE_METADATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=240,
-  serialized_end=282,
+  serialized_start=294,
+  serialized_end=336,
 )
 
 
@@ -236,8 +250,8 @@ _DATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=285,
-  serialized_end=453,
+  serialized_start=339,
+  serialized_end=507,
 )
 
 _MUTATION_LIST.fields_by_name['mutation'].message_type = _MUT

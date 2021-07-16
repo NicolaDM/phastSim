@@ -5,6 +5,7 @@ from enum import Enum
 from copy import deepcopy
 from itertools import count
 from bisect import bisect_left
+import phastSim.parsimony_pb2 as protobuf
 
 
 
@@ -48,11 +49,14 @@ def setup_argument_parser():
                         help="Proportion of invariable sites, that is, sites that have a mutation rate of 0.0 .",
                         type=float, default=0.0)
     parser.add_argument("--mutationRates",
-                        help="Mutation rates, by default using the neutral rates estimated from SARS-CoV-2; so far"
-                             " only exactly 12 input values allowed (r_AC, r_AG, r_AT, r_CA, etc...) corresponding to"
-                             " an UNREST nucleotide substitution model.",
-                        type=float, nargs='+',
-                        default=[0.039, 0.310, 0.123, 0.140, 0.022, 3.028, 0.747, 0.113, 2.953, 0.056, 0.261, 0.036])
+                        help="Mutation rates, by default using the neutral rates estimated from SARS-CoV-2 so far (UNREST model)."
+                             "Possible inputs are: "
+                             "UNREST r_AC r_AG r_AT r_CA etc... (12 values)"
+                             "JC69"
+                             "HKY85 r_transition r_transversion pi_A pi_C pi_G pi_T"
+                             "GTR r_AC r_AG r_AT r_CG r_CT r_GT pi_A pi_C pi_G pi_T",
+                        nargs='+',
+                        default=["UNREST", 0.039, 0.310, 0.123, 0.140, 0.022, 3.028, 0.747, 0.113, 2.953, 0.056, 0.261, 0.036])
     parser.add_argument("--codon",
                         help="Run simulations under a codon model, where mutation rates are used to describe nucleotide"
                              " mutation rates, and omegas are used to describe the effect of selection at the amino acid"
@@ -100,6 +104,8 @@ def setup_argument_parser():
     parser.add_argument('--outputFile', default="sars-cov-2_simulation_output",
                         help='Output file name containing the simulated genomes in succint format. The file will be '
                              'created within the folder specified with --path.')
+    parser.add_argument('--alternative_output_format', help='Produces a succinct txt output file using a modified VCF format', 
+                        action="store_true")
     parser.add_argument("--createNewick",
                         help="Create a newick file annotated with the simulated mutation events "
                              "(default name sars-cov-2_simulation_output.tree).",
@@ -116,21 +122,44 @@ def setup_argument_parser():
                         help="Create a .info file with information regarding the rates at each genome position "
                              "(default name sars-cov-2_simulation_output.info).",
                         action="store_true")
+    parser.add_argument("--createMAT", 
+                        help="Create a mat.pb protocol buffer output file (default name sars-cov-2_simulation_output.mat.pb).",
+                        action="store_true")
     parser.add_argument("--indels",
-                        help="Allow for insertions and deletions with lengths drawn from a geometric distribution",
+                        help="Allow for insertions and deletions with lengths drawn from a set of configurable parametric distributions",
                         action="store_true")
     parser.add_argument("--insertionRate",
-                        help="Genome-wide rate parameter for insertions at each site",
-                        type=float, default=0)
+                        help="Distribution for the rates of insertions at each site. Possible values are: "
+                             "CONSTANT x - all sites in the genome have a rate of x"
+                             "GAMMA ins_shape ins_scale - rates drawn from a gamma(ins_shape, ins_scale) distribution",
+                        type=str, nargs='+', default=None)
     parser.add_argument("--deletionRate",
-                        help="Genome-wide rate parameter for deletions at each site",
-                        type=float, default=0)
+                        help="Distribution for the rates of insertions at each site. Possible values are: "
+                             "CONSTANT x - all sites in the genome have a rate of x"
+                             "GAMMA del_shape del_scale - rates drawn from a gamma(del_shape, del_scale) distribution",
+                        type=str, nargs='+', default=None)
     parser.add_argument("--insertionLength",
-                        help="Genome-wide geometric parameter for insertion length at each site",
-                        type=float, default=0)
+                        help="Genome-wide distributional parameters for insertion lengths at each site."
+                             "Possible values are:"
+                             "GEOMETRIC p - indels distributed with probability mass function (1-p)^k * p."
+                             "NEGBINOMIAL n p - distributed as C(k + n - 1, k) * p^k * (1-p)^-n"
+                             "ZIPF a - distributed as k^-a / Zeta(a)"
+                             "LAVALETTE M a"
+                             "DISCRETE p_1 p_2 p_3 p_4 ... etc. (N values, p_k the probability of an indel of length k)",
+                        type=str, nargs='+', default=None)
     parser.add_argument("--deletionLength",
-                        help="Genome-wide geometric parameter for deletion length at each site",
-                        type=float, default=0)
+                        help="Genome-wide distributional parameters for deletion lengths at each site."
+                             "Possible values are:"
+                             "GEOMETRIC p - indels distributed with probability mass function (1-p)^k * p."
+                             "NEGBINOMIAL n p - distributed as C(k + n - 1, k) * p^k * (1-p)^-n"
+                             "ZIPF a - distributed as k^-a / Zeta(a)"
+                             "LAVALETTE M a"
+                             "DISCRETE p_1 p_2 p_3 p_4 ... etc. (N values, p_k the probability of an indel of length k)",
+                        type=str, nargs='+', default=None)
+    parser.add_argument('--mutationsTSVinput', 
+                        help='Name of (optional) file containing mutation events that are enforced on the tree.'
+                        'Sites mutated this way become unmutable through the standard simulated mutation process.', 
+                        default=None)
     return parser
 
 
@@ -237,23 +266,74 @@ class phastSimRun:
 
     def init_substitution_rates(self):
         # substitution rates
-        mutationRates = self.args.mutationRates
-        if len(mutationRates) == 12:
-            print("\n Assuming UNREST nucleotide mutation model.")
-            mutMatrix = np.zeros((4, 4), dtype=float)
-            index = 0
-            for i in range(4):
-                sum = 0.0
-                for j in range(4):
-                    if j != i:
-                        mutMatrix[i][j] = mutationRates[index]
-                        sum += mutationRates[index]
-                        index += 1
-                mutMatrix[i][i] = -sum
-        else:
-            print("\n Number of mutation rates " + str(len(mutationRates)) + ", model not implemented yet.")
-            print(mutationRates)
+        mutationInputs = self.args.mutationRates
+        model = mutationInputs[0]
+
+        if not model.upper() in ["UNREST", "GTR", "JC69", "HKY85"]:
+            print(f"This model, {model}, is not yet implemented, choose one of UNREST, GTR, JC69, HKY85, followed by comma separated parameter values.")
+            print("Use phastSim --help for more information.")
             exit()
+
+        mutationInputs = [float(x) for x in mutationInputs[1:]]
+
+        print(f"Assuming {model} nucleotide mutation model.")
+
+        mutationRates = []
+        if model.upper() == "UNREST":
+            
+            if len(mutationInputs) != 12:
+                print(f"{model.upper()} requires exactly 12 parameters, r_AC, r_AG, r_AT, r_CA, r_CG, r_CT, r_GA, r_GC, r_GT, r_TA, r_TC, r_TG.")
+                print(f"This model had {len(mutationInputs)} parameter values.") 
+                exit()
+            mutationRates = mutationInputs
+
+        elif model.upper() == "GTR":
+            if len(mutationInputs) != 10:
+                print(f"{model.upper()} requires exactly 10 parameters, r_AC, r_AG, r_AT, r_CG, r_CT, r_GT, pi_A, pi_C, pi_G, pi_T.")
+                print(f"This model had {len(mutationInputs)} parameter values.") 
+                exit()
+
+            r_AC, r_AG, r_AT, r_CG, r_CT, r_GT, pi_A, pi_C, pi_G, pi_T = tuple(mutationInputs)
+            
+            mutationRates = [
+                                          r_AC * pi_C, r_AG * pi_G, r_AT * pi_T,
+                             r_AC * pi_A,              r_CG * pi_G, r_CT * pi_T, 
+                             r_AG * pi_A, r_CG * pi_C,              r_GT * pi_T, 
+                             r_AT * pi_A, r_CT * pi_C, r_GT * pi_G]
+
+        elif model.upper() == "JC69":
+
+            mutationRates = [0.25] * 12
+
+        elif model.upper() == "HKY85":
+            
+            if len(mutationInputs) != 6:
+                print(f"{model.upper()} requires exactly 6 parameters, r_transition, r_transversion, pi_A, pi_C, pi_G, pi_T.")
+                print(f"This model had {len(mutationInputs)} parameter values.") 
+                exit()
+
+            # a = alpha = r_transition, b = beta = r_transversion
+            a, b, pi_A, pi_C, pi_G, pi_T = tuple(mutationInputs)
+            mutationRates = [
+                                       b * pi_C, a * pi_G, b * pi_T,
+                             b * pi_A,           b * pi_G, a * pi_T, 
+                             a * pi_A, b * pi_C,           b * pi_T, 
+                             b * pi_A, a * pi_C, b *pi_G]
+
+        else:
+            exit()
+        
+        mutMatrix = np.zeros((4, 4), dtype=float)
+        index = 0
+        for i in range(4):
+            sum = 0.0
+            for j in range(4):
+                if j != i:
+                    mutMatrix[i][j] = mutationRates[index]
+                    sum += mutationRates[index]
+                    index += 1
+            mutMatrix[i][i] = -sum
+
         print("\n Mutation rate matrix:")
         print(mutMatrix)
         return mutMatrix
@@ -298,6 +378,32 @@ class phastSimRun:
             print(f"Proportion of invariable {invariable}")
             categoriesInv = (np.random.choice(2, p=[1.0 - invariable, invariable]) for _ in count())
             gammaRates = (0.0 if c else g for (c,g) in zip(categoriesInv, gammaRates))
+
+        mutationsTSVinput=self.args.mutationsTSVinput
+        if (self.args.indels or not self.hierarchy or self.args.codon) and mutationsTSVinput:
+            print("TSV mutations is currently not supported alongside indels, and must use hierarchy mode.")
+            print("Please remove --indels and --noHierarchy flags.")
+            exit()
+
+        if mutationsTSVinput!=None:
+            mutation_file = f'{mutationsTSVinput}'
+            file = open(mutation_file)
+            line=file.readline()
+            preMutationsBranches={}
+            while line!="" and line!="\n": 
+                linelist=line.split()
+                if len(linelist)>1:
+                    branch=linelist[0]
+                    preMutationsBranches[branch]=[]
+                    linelist2=linelist[1].split(",")
+                    for i in range(len(linelist2)):
+                        pos=int(linelist2[i][1:-1])
+                        gammaRates[pos-1]=0.0
+                        preMutationsBranches[branch].append((pos,linelist2[i][0],linelist2[i][-1]))
+                line=file.readline()
+            file.close()
+            print(preMutationsBranches)
+            return gammaRates, preMutationsBranches
 
         return gammaRates
 
@@ -382,18 +488,134 @@ class phastSimRun:
 
     def init_indel_rates(self):
 
-        if not self.hierarchy:
+        if not (self.hierarchy and self.args.indels):
             print("error, indel model only allowed with hierarchical mode, remove --noHierarchy")
             print("exiting")
             exit()
-        # for each site on the genome, pick an insertion rate, and length parameter, and a deletion rate, and length parameter
+        
+        def parse_indel_rates(cli_parameters):
+            model = cli_parameters[0]
+            parameter = cli_parameters[1:]
 
-        return (
-            (self.args.insertionRate for _ in count()),
-            (self.args.insertionLength for _ in count()),
-            (self.args.deletionRate for _ in count()), 
-            (self.args.deletionLength for _ in count())
-        )
+            if not model.upper() in ["GAMMA", "CONSTANT"]:
+                print("error - only indel models allowed are GAMMA or CONSTANT, exiting.")
+                exit()
+
+            if model == "CONSTANT":
+                generator = (float(parameter[0]) for _ in count())
+            
+            else:
+                if len(parameter) != 2:
+                    print("Gamma distribution requires 2 parameters, shape and scale. Exiting")
+                    exit()
+
+                if np.product(parameter) > 0.25:
+                    print("Warning: indels are meant to be rare but the average per nucleotide indel rate is the product of parameters:")
+                    print("Product: " + str(np.product(parameter)))
+
+                generator = (np.random.gamma(parameter[0], parameter[1]) for _ in count())
+            
+            return generator
+
+        insertionGenerator = parse_indel_rates(self.args.insertionRate)
+        deletionGenerator = parse_indel_rates(self.args.deletionRate)
+
+        return (insertionGenerator, deletionGenerator)
+
+
+    def init_indel_lengths(self):
+
+        if not (self.hierarchy and self.args.indels):
+            print("error, indel model only allowed with hierarchical mode, remove --noHierarchy")
+            print("exiting")
+            exit()
+
+        # generate a stream of random indel lengths to be passed to the genomeTree_hierarchical
+        def parse_indel_args(argument_name):
+            indel_data = getattr(self.args, argument_name)
+
+            distribution = indel_data[0].upper()
+            parameters = indel_data[1:]
+
+            if distribution == "GEOMETRIC":
+
+                if len(parameters) != 1:
+                    print(f"{distribution} requires exactly 1 parameter, p.")
+                    print(f"This model had {len(parameters)} parameter values.") 
+                    exit()
+
+                p = float(parameters[0])
+
+                return (np.random.geometric(p) for _ in count())
+
+            elif distribution == "NEGBINOMIAL":
+
+                if len(parameters) != 2:
+                    print(f"{distribution} requires exactly 2 parameters, r p.")
+                    print(f"This model had {len(parameters)} parameter values.") 
+                    exit()
+
+                r = int(parameters[0])
+                p = float(parameters[1])  
+
+                return (1 + np.random.negative_binomial(r, p) for _ in count())
+
+            elif distribution == "ZIPF":
+
+                if len(parameters) != 1:
+                    print(f"{distribution} requires exactly 1 parameter, a.")
+                    print(f"This model had {len(parameters)} parameter values.") 
+                    exit()
+
+                a = float(parameters[0])
+
+                if a <= 1.0:
+                    print(f"Parameter a in Zipf distribution must be > 1 whereas, value is: {a}")
+                    exit()
+
+                return (np.random.zipf(a) for _ in count())
+
+            elif distribution == "LAVALETTE":
+
+                if len(parameters) != 2:
+                    print(f"{distribution} requires exactly 2 parameters, M a.")
+                    print(f"This model had {len(parameters)} parameter values.") 
+                    exit()
+
+                M = int(parameters[0])
+                a = float(parameters[1])
+
+                probs = [(float(i) * float(M)/ float(M - i + 1)) ** (-1 * a) for i in range(1, M+1)]
+
+                total = sum(probs)
+
+                probs = [x/ total for x in probs]
+
+                return (np.random.choice(range(1, M+1), p=probs) for _ in count())
+
+            elif distribution == "DISCRETE":
+
+                if len(parameters) < 1:
+                    print("DISCRETE option requires parameters p_1 p_2, ...etc.")
+                    exit()
+
+                if abs(sum(parameters) - 1) > 0.00001:
+                    print(f"Sum of discrete probabilities adds to {sum(parameters)}, normalising so that the total is 1.")
+                    parameters = [x/sum(parameters) for x in parameters]
+                    print(f"New values are: {parameters}")
+
+                return (np.random.choice(range(1, len(parameters)+1), p=parameters) for _ in count())
+
+            else:
+                print(f"This distribution, {distribution}, is not yet implemented, choose one of ")
+                print("GEOMETRIC, NEGBINOMIAL, ZIPF, LAVALETTE, DISCRETE, followed by comma separated parameter values.")
+                print("Use phastSim --help for more information.")
+                exit()
+
+        insertionLength = parse_indel_args("insertionLength")
+        deletionLength = parse_indel_args("deletionLength")
+
+        return insertionLength, deletionLength
         
 
     def init_insertion_frequencies(self):
@@ -466,8 +688,10 @@ class phastSimRun:
 class GenomeTree_hierarchical:
     def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, 
                 indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, file, verbose):
+
         self.codon = codon
         self.ref = ref
+        self.refList = list(ref)
         self.gammaRates = gammaRates
         self.omegas = omegas
         self.mutMatrix = mutMatrix
@@ -552,7 +776,6 @@ class GenomeTree_hierarchical:
                 # set the insertion rate of the node, and the insertion index (i.e. which number insert - 0 meaning the node was on the reference).
                 node.insertionPos = self.n_insertions
                 node.insertionRate = next(self.insertionRate)
-                node.insertionLength = next(self.insertionLength)
 
                 # the first node is a 'dummy' node with allele -1, representing a blank character. 
                 # An insertion can happen at this node, but nothing else. 
@@ -801,15 +1024,6 @@ class GenomeTree_hierarchical:
             "You should not have got here - there was a bug somewhere or some unlucky sampling in the machine error area")
         exit()
 
-    def sampleDeletion(self, rate, rand):
-
-        # this rand needs to be fresh and not related to the random number
-        # coming from sampling a position on the genome.
-        
-        if rate <= 0 or rand <= 0:
-            return 1
-
-        return 1 + int(np.log(rand)/np.log(rate))
 
     def deleteNodes(self, rand, node, remaining_deletions, level):
         # This function should be called once findPos has sampled a deletion at a particular node. 
@@ -891,13 +1105,10 @@ class GenomeTree_hierarchical:
             return deleted_leaves_left + deleted_leaves_right, deleted_string_left + deleted_string_right
 
 
-    def sampleInsertion(self, rate, node, rand, level):
+    def sampleInsertion(self, node, level):
         
-        # We expect rand to be a Uniform[0, 1] r.v.
-        # Rate is the parameter determining the length distribution of the insert. 
 
-        # sample a geometric random variable (plus 1)
-        insertion_length = 1 + int(np.log(rand)/np.log(rate))
+        insertion_length = next(self.insertionLength)
 
         # increment the total insertion counter
         self.n_insertions += 1
@@ -956,7 +1167,7 @@ class GenomeTree_hierarchical:
                 # deletions
                 if rand < node.deletionRate:
 
-                    attempted_deletion_length = self.sampleDeletion(node.deletionLength, rand/node.deletionRate)
+                    attempted_deletion_length = next(self.deletionLength)
                     pos = node.genomePos
                     deleted_string = ((self.codonAllelesList[node.allele] if self.codon else self.allelesList[node.allele])
                                          + "?" * (attempted_deletion_length - 1) * (3 if self.codon else 1))
@@ -980,7 +1191,7 @@ class GenomeTree_hierarchical:
                 if rand < node.insertionRate:
                 
                     # sampleInsertion will mutate the parentGenomeNode
-                    mutEvent = self.sampleInsertion(node.insertionLength, parentGenomeNode, rand/node.insertionRate, level)
+                    mutEvent = self.sampleInsertion(parentGenomeNode, level)
 
                     return mutEvent
 
@@ -1102,7 +1313,69 @@ class GenomeTree_hierarchical:
             return mutEvent
 
 
-    def mutateBranchETEhierarchy(self, childNode, parentGenomeNode, level, createNewick):
+    def applyMutation(self, parentGenomeNode, level, mutEvent):
+        # find position to mutate along the genome, and update temporary genome tree structure as you go.
+        # this one is only used for mutations that are forced by the user
+        node = parentGenomeNode.refNode
+        a = parentGenomeNode.allele
+
+        if parentGenomeNode.isTerminal:
+            # reached a terminal node, now force the mutation event at the position and update all rates
+            j=self.alleles[mutEvent.target]
+
+            if self.verbose:
+                print(f"Forced Mutation from {a} to {j},"
+                        f" position {node.genomePos}"
+                        f" category rate {node.gammaRate}"
+                        f" hyperCat {node.hyperCategories}"
+                        f" old rate {parentGenomeNode.rate} old rates:")
+                print(node.rates)
+
+            if self.verbose:
+                print(" new rate " + str(parentGenomeNode.rate) + " all rates:")
+                print(node.rates)
+            parentGenomeNode.allele = j
+
+        else:
+            # still at an internal genome node.
+            # choose which of the two children genome nodes to move into
+            pos=mutEvent.genomePos
+            child1Pos=parentGenomeNode.belowNodes[0].refNode.genomePos
+
+            if pos>=child1Pos[0] and pos<=child1Pos[1]:
+                parentGenomeNode.rate = parentGenomeNode.belowNodes[1].rate
+                child = parentGenomeNode.belowNodes[0]
+                childI = 0
+            else:
+                parentGenomeNode.rate = parentGenomeNode.belowNodes[0].rate
+                child = parentGenomeNode.belowNodes[1]
+                childI = 1
+
+            # if the child we are moving into is not on the same level, but is above,
+            # then create a new child at the same level.
+            # this is because the rate of the child will be inevitably changed by the mutation event,
+            # and we don't want to change the mutation rates for the parent phylogenetic node.
+            if child.level < level:
+                newChild = genomeNode(level=level)  
+                parentGenomeNode.belowNodes[childI] = newChild
+                newChild.isTerminal = child.isTerminal
+                newChild.refNode=child.refNode
+                if child.isTerminal:
+                    #newChild.refNode = child.refNode
+                    newChild.allele = child.allele
+                else:
+                    newChild.belowNodes = list(child.belowNodes)
+
+                self.applyMutation(newChild, level, mutEvent)
+
+                parentGenomeNode.rate += newChild.rate
+            else:
+                # in this case the child is already on the same level, so no need to create another one, just update its mutation rate.
+                self.applyMutation(child, level, mutEvent)
+                parentGenomeNode.rate += child.rate
+
+
+    def mutateBranchETEhierarchy(self, childNode, parentGenomeNode, level, createNewick, preMutationsBranches):
         # Function to simulate evolution on one branch,using ETE tree structure
         # and using the genome-wide hierarchy structure.
         # given details of the parent node, it generates details of the child node, and updates the hierarchy accordingly.
@@ -1118,17 +1391,38 @@ class GenomeTree_hierarchical:
         rate = parentGenomeNode.rate
         childNode.mutations = []
 
+        #Go through the input mutation events at the current branch and apply them to the genome tree.
+        if childNode.name in preMutationsBranches:
+            newGenomeNode = genomeNode(level=level)
+            newGenomeNode.belowNodes = list(parentGenomeNode.belowNodes)
+            for m in preMutationsBranches[childNode.name]:
+                pos=m[0]
+                fromA=m[1]
+                toA=m[2]
+                print("applying mutation")
+                mutEvent=mutation(mType.SUB, pos-1,source=fromA,target=toA)
+                print(mutEvent)
+                self.applyMutation(newGenomeNode, level, mutEvent)
+                childNode.mutations.append(mutEvent)
+                if createNewick:
+                    childNode.mutAnnotation.append(str(mutEvent))
+            rate = newGenomeNode.rate
+
         # Sample new mutation event with Gillespie algorithm
         currTime += np.random.exponential(scale=1.0 / rate)
         if self.verbose:
             print(f"\n Node {childNode.name} BLen: {bLen} first sampled time: {currTime}; mutation rate: {rate}")
         # for the first mutation event at this node, create a new root genome node of the appropriate level.
         # otherwise, use the one you already have.
-        if currTime < bLen:
+        
+        if currTime < bLen and (not (childNode.name in preMutationsBranches)):
+        #if currTime < bLen:
             newGenomeNode = genomeNode(level=level)
             newGenomeNode.belowNodes = list(parentGenomeNode.belowNodes)
-        else:
+        
+        elif (not (childNode.name in preMutationsBranches)):
             newGenomeNode = parentGenomeNode
+        
         while currTime < bLen:
             # Now, sample which type of mutation event it is (from which nucleotide to which nucleotide)
             rand = np.random.random() * rate
@@ -1165,7 +1459,7 @@ class GenomeTree_hierarchical:
             print([str(m) for m in childNode.mutations])
         # now mutate children of the current node, calling this function recursively on the node children.
         for c in childNode.children:
-            self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick)
+            self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick, preMutationsBranches)
 
 
     def getAbsoluteCoords(self, mut, mutDict, insertionDict):
@@ -1185,8 +1479,13 @@ class GenomeTree_hierarchical:
             return mut.genomePos, 0
 
 
-    def writeGenomeShortIndels(self, node, file, mutDict, insertionDict):
+    def wrapWriterWithMutationDict(writingFunction):
         """
+        This function wraps a writing function, by keeping track of a mutDict and insertionDict; the writing function is there
+        just to write the output to the file in the correct format. 
+
+        I've done this because the same wrapper with a mutDict and insertionDict is used in multiple places. 
+
         This whole function is overly complicated and potentially could be quite slow. 
         The aim is to 'collapse' all of the (possibly overlapping / nested) indels and substitutions
         into a concise format. 
@@ -1218,211 +1517,228 @@ class GenomeTree_hierarchical:
         mutation(source = AAAAA, target = "", insertionPos = 0, genomePos = 234)
 
         """
-        
 
-        # flatten the mutDict + node.mutations into a more concise format, and save indels in insertionDict
-        for m in node.mutations:
+        def wrappedFunction(self, node, file, mutDict, insertionDict, **kwargs):
 
-            # find the 'absolute' coordinate of the mutation i.e. where it lives relative to the 
-            # already existing mutations in the mutDict. 
-            refPos, offset = self.getAbsoluteCoords(m, mutDict, insertionDict)
 
-            if m.mType == mType.SUB:
+            # flatten the mutDict + node.mutations into a more concise format, and save indels in insertionDict
+            for m in node.mutations:
 
-                if refPos in mutDict:
-                    target = mutDict[refPos][1]
-                    mutDict[refPos][1] = target[:offset] + m.target + target[offset+1:]
+                # find the 'absolute' coordinate of the mutation i.e. where it lives relative to the 
+                # already existing mutations in the mutDict. 
+                refPos, offset = self.getAbsoluteCoords(m, mutDict, insertionDict)
 
-                    # if the substitution has exactly reversed a previous substitution then we can delete it
-                    if mutDict[refPos][1] == self.ref[refPos]:
-                        del mutDict[refPos]
+                if m.mType == mType.SUB:
 
-                else:
-                    mutDict[refPos] = [self.ref[refPos], m.target, [(m.insertionPos, m.genomePos)]]
+                    if refPos in mutDict:
+                        target = mutDict[refPos][1]
+                        mutDict[refPos][1] = target[:offset] + m.target + target[offset+1:]
 
-            elif m.mType == mType.INS:
+                        # if the substitution has exactly reversed a previous substitution then we can delete it
+                        if mutDict[refPos][1] == self.ref[refPos]:
+                            del mutDict[refPos]
 
-                # add the insertion to the insertion dictionary
-                insertionDict[m.index] = refPos
+                    else:
+                        mutDict[refPos] = [self.ref[refPos], m.target, [(m.insertionPos, m.genomePos)]]
 
-                if refPos in mutDict:
-                    # record the indices i.e. the relative genome coordinates of the existing data
-                    indices = mutDict[refPos][2]
-                    target = mutDict[refPos][1]
+                elif m.mType == mType.INS:
+
+                    # add the insertion to the insertion dictionary
+                    insertionDict[m.index] = refPos
+
+                    if refPos in mutDict:
+                        # record the indices i.e. the relative genome coordinates of the existing data
+                        indices = mutDict[refPos][2]
+                        target = mutDict[refPos][1]
+                        
+
+                        # the new data is comprised of: original, new insertion, new indices of genome
+                        mutDict[refPos] = [mutDict[refPos][0], 
+                                        target[:offset+1] + m.target + target[offset+1:],
+                                        indices[:offset+1] + [(m.index, i) for i in range(len(m.target))] + indices[offset+1:]]
                     
+                    else:
+                        # deal with an edge case where we are at the -1 genome position i.e. right at the start of the genome
+                        first_symbol = (self.ref[refPos] if refPos != -1 else "")
+                        mutDict[refPos] = [first_symbol,
+                                        first_symbol + m.target,
+                                        [(m.insertionPos, m.genomePos)] + [(m.index, i) for i in range(len(m.target))]]
 
-                    # the new data is comprised of: original, new insertion, new indices of genome
-                    mutDict[refPos] = [mutDict[refPos][0], 
-                                       target[:offset+1] + m.target + target[offset+1:],
-                                       indices[:offset+1] + [(m.index, i) for i in range(len(m.target))] + indices[offset+1:]]
-                
+                # deletion - this is the most difficult case
                 else:
-                    # deal with an edge case where we are at the -1 genome position i.e. right at the start of the genome
-                    first_symbol = (self.ref[refPos] if refPos != -1 else "")
-                    mutDict[refPos] = [first_symbol,
-                                       first_symbol + m.target,
-                                       [(m.insertionPos, m.genomePos)] + [(m.index, i) for i in range(len(m.target))]]
 
-            # deletion - this is the most difficult case
-            else:
+                    # need to deal with the deletion one symbol at a time
+                    deletedChars = 0
+                    m.deletedPositions = []
 
-                # need to deal with the deletion one symbol at a time
-                deletedChars = 0
-                m.deletedPositions = []
+                    appending = False
+                    dictPos = refPos
 
-                appending = False
-                dictPos = refPos
+                    while (deletedChars < len(m.source)):
 
-                while (deletedChars < len(m.source)):
-
-                    # we may be appending characters to the current deletion one at a time
-                    if appending:
-                        
-                        # if the next character is already in the dictionary, we must stop appending 
-                        if refPos in mutDict:
-                        
-                            appending = False
+                        # we may be appending characters to the current deletion one at a time
+                        if appending:
                             
-                            # delete a character if it is non-blank
-                            if mutDict[refPos][1][offset] != "-":
-                                mutDict[refPos][1] = mutDict[refPos][1][:offset] + "-" + mutDict[refPos][1][offset+1:]
+                            # if the next character is already in the dictionary, we must stop appending 
+                            if refPos in mutDict:
+                            
+                                appending = False
+                                
+                                # delete a character if it is non-blank
+                                if mutDict[refPos][1][offset] != "-":
+                                    mutDict[refPos][1] = mutDict[refPos][1][:offset] + "-" + mutDict[refPos][1][offset+1:]
+                                    deletedChars += 1
+                                    m.deletedPositions.append(mutDict[refPos][2][offset])
+                            
+                            # otherwise we can continue appending to the deletion 
+                            else:
+                                
+                                mutDict[dictPos][0] += self.ref[refPos]
+                                mutDict[dictPos][1] += "-"
+                                mutDict[dictPos][2] += [(0, refPos)]
                                 deletedChars += 1
-                                m.deletedPositions.append(mutDict[refPos][2][offset])
+                                m.deletedPositions.append((0, refPos))
                         
-                        # otherwise we can continue appending to the deletion 
+                        # in this case we are working on an existing deletion, or have just finished doing so
                         else:
                             
-                            mutDict[dictPos][0] += self.ref[refPos]
-                            mutDict[dictPos][1] += "-"
-                            mutDict[dictPos][2] += [(0, refPos)]
-                            deletedChars += 1
-                            m.deletedPositions.append((0, refPos))
-                    
-                    # in this case we are working on an existing deletion, or have just finished doing so
-                    else:
-                        
-                        # a position not ever seen before, we must add it to the dictionary and 
-                        # can append to it
-                        if not dictPos in mutDict:
-                            
-                            mutDict[dictPos] = [self.ref[dictPos], "-", [(0, dictPos)]]
-                            deletedChars += 1
-                            m.deletedPositions.append((0, dictPos))
-                            appending = True
-                            
-                        # delete a character if it is non-blank
-                        else: 
-                            if mutDict[dictPos][1][offset] != "-":
-                                mutDict[dictPos][1] = mutDict[dictPos][1][:offset] + "-" + mutDict[dictPos][1][offset+1:]
+                            # a position not ever seen before, we must add it to the dictionary and 
+                            # can append to it
+                            if not dictPos in mutDict:
+                                
+                                mutDict[dictPos] = [self.ref[dictPos], "-", [(0, dictPos)]]
                                 deletedChars += 1
-                                m.deletedPositions.append(mutDict[dictPos][2][offset])
-                    
-                    
-                    # now move to the next character
-                    # increment the reference position if we pass it
-                    if mutDict[dictPos][2][offset] == (0, refPos):
-                        refPos += 1  
+                                m.deletedPositions.append((0, dictPos))
+                                appending = True
+                                
+                            # delete a character if it is non-blank
+                            else: 
+                                if mutDict[dictPos][1][offset] != "-":
+                                    mutDict[dictPos][1] = mutDict[dictPos][1][:offset] + "-" + mutDict[dictPos][1][offset+1:]
+                                    deletedChars += 1
+                                    m.deletedPositions.append(mutDict[dictPos][2][offset])
                         
-                    # we will change to a new dictionary item if we are not in append mode or are not going to be
-                    offset += 1
-                    if offset == len(mutDict[dictPos][2]):
-                        if not appending or (refPos in mutDict):
-                            appending = False
-                            dictPos = refPos
-                            offset = 0
+                        
+                        # now move to the next character
+                        # increment the reference position if we pass it
+                        if mutDict[dictPos][2][offset] == (0, refPos):
+                            refPos += 1  
+                            
+                        # we will change to a new dictionary item if we are not in append mode or are not going to be
+                        offset += 1
+                        if offset == len(mutDict[dictPos][2]):
+                            if not appending or (refPos in mutDict):
+                                appending = False
+                                dictPos = refPos
+                                offset = 0
 
+            # call the writing function - which will write to the file or pass data to the child nodes as appropriate
+            writingFunction(self, node, file, mutDict, insertionDict, **kwargs)
+
+            # de-update the list so it can be used by siblings etc.
+            # we need to do everything in the first part but backwards - terrific
+            for m in reversed(node.mutations):
+
+                refPos, offset = self.getAbsoluteCoords(m, mutDict, insertionDict)
+
+                if m.mType == mType.SUB:
+
+                    if refPos in mutDict:
+                        target = mutDict[refPos][1]
+                        mutDict[refPos][1] = target[:offset] + m.source + target[offset+1:]
+
+                        # if the substitution has exactly reversed a previous substitution then we can delete it
+                        if mutDict[refPos][1] == self.ref[refPos]:
+                            del mutDict[refPos]
+
+                    else:
+                        mutDict[refPos] = [self.ref[refPos], m.source, [(m.insertionPos, m.genomePos)]]
+
+                elif m.mType == mType.INS:
+
+                    # de-update an insertion by removing it from the insertion dictionary 
+                    # and also removing any reference to it in the mutDict
+                    del insertionDict[m.index]
+                    insertionLength = len(m.target)
+
+                    # remove the insertion
+                    mutDict[refPos][1] = mutDict[refPos][1][:offset + 1] + mutDict[refPos][1][offset + insertionLength + 1:]
+                    mutDict[refPos][2] = mutDict[refPos][2][:offset + 1] + mutDict[refPos][2][offset + insertionLength + 1:]
+
+                    # if the de-updated mutation is now identical to the reference genome then delete the dictionary item
+                    if mutDict[refPos][0] == mutDict[refPos][1]:
+                        del mutDict[refPos]
+
+                # deletion - this is the more difficult case - we need to put back everything that had been deleted. 
+                # this may mean putting back an arbitrary string of insertions and substitutions
+                else:
+
+
+                    # need to deal with the deletion one symbol at a time
+                    deletedChars = 0
+                    counter = 0
+
+                    while (deletedChars < len(m.source)):
+                        # a deletion may have skipped characters (other nested deletions)
+                        # we need to make sure we only 'un-delete' the correct characters
+                        if mutDict[refPos][2][offset] == m.deletedPositions[deletedChars]:
+                            
+                            # insert back symbols in the target mutation
+                            mutDict[refPos][1] = mutDict[refPos][1][:offset] + m.source[deletedChars] + mutDict[refPos][1][offset+1:]
+                            deletedChars += 1
+
+                        # move to next symbol
+                        if mutDict[refPos][2][offset] == (0, refPos + counter):
+                            counter += 1
+                        offset += 1
+                        if offset == len(mutDict[refPos][1]):
+                            offset = 0
+                            
+                            # remove 'null' deletions
+                            if mutDict[refPos][0] == mutDict[refPos][1]:
+                                del mutDict[refPos]
+
+                            refPos += counter
+                            counter = 0
+
+        return wrappedFunction
+
+    @wrapWriterWithMutationDict
+    def writeGenomeShortIndels(self, node, file, mutDict, insertionDict, alternative_output_format):
 
         # print leaf entry to file
         if node.is_leaf():
             file.write(">" + node.name + "\n")
-            # TODO REMOVE THESE COMMENTS!
-            #if self.verbose:
-            #    print(">" + node.name)
+
+            if self.verbose:
+                print(">" + node.name)
                             
             mutList = list(mutDict.keys())
             mutList.sort()
-            first = True
+
             for pos in mutList:
                 m = mutDict[pos]
-                file.write(f"{m[0]}{pos+1}{m[1]}\n")
-                # TODO REMOVE THIS!
+                if not alternative_output_format:
+                    file.write(f"{m[0]}{pos+1}{m[1]}\n")
+
+                else:
+                    if '-' == m[1][0]: # deletion
+                        file.write(f"-\t{pos+1}\t")
+                    
+                    else: # insertion and/or substitution
+                        if m[0][0] != m[1][0]: # substitution
+                            file.write(f"{m[0]}\t{pos+1}\t{m[1]}")
+
+                        if len(m[1]) > 1: # insertion
+                            file.write(f"i\t{pos+1}\t{m[1][1:]}")
+
                 if self.verbose:
-                    if m[1] == "-" or len(m[1]) > 1:
-                        if first:
-                            print(">" + node.name)
-                            first = False
-                        print(f"{m[0]}{pos+1}{m[1]}: debug {m}")
+                    print(f"{m[0]}{pos+1}{m[1]}: debug {m}")
 
         # pass data to children
         else:
             for c in node.children:
-                self.writeGenomeShortIndels(c, file, mutDict, insertionDict)
-
-        # de-update the list so it can be used by siblings etc.
-        # we need to do everything in the first part but backwards - terrific
-        for m in reversed(node.mutations):
-
-            refPos, offset = self.getAbsoluteCoords(m, mutDict, insertionDict)
-
-            if m.mType == mType.SUB:
-
-                if refPos in mutDict:
-                    target = mutDict[refPos][1]
-                    mutDict[refPos][1] = target[:offset] + m.source + target[offset+1:]
-
-                    # if the substitution has exactly reversed a previous substitution then we can delete it
-                    if mutDict[refPos][1] == self.ref[refPos]:
-                        del mutDict[refPos]
-
-                else:
-                    mutDict[refPos] = [self.ref[refPos], m.source, [(m.insertionPos, m.genomePos)]]
-
-            elif m.mType == mType.INS:
-
-                # de-update an insertion by removing it from the insertion dictionary 
-                # and also removing any reference to it in the mutDict
-                del insertionDict[m.index]
-                insertionLength = len(m.target)
-
-                # remove the insertion
-                mutDict[refPos][1] = mutDict[refPos][1][:offset + 1] + mutDict[refPos][1][offset + insertionLength + 1:]
-                mutDict[refPos][2] = mutDict[refPos][2][:offset + 1] + mutDict[refPos][2][offset + insertionLength + 1:]
-
-                # if the de-updated mutation is now identical to the reference genome then delete the dictionary item
-                if mutDict[refPos][0] == mutDict[refPos][1]:
-                    del mutDict[refPos]
-
-            # deletion - this is the more difficult case - we need to put back everything that had been deleted. 
-            # this may mean putting back an arbitrary string of insertions and substitutions
-            else:
-
-
-                # need to deal with the deletion one symbol at a time
-                deletedChars = 0
-                counter = 0
-                
-                while (deletedChars < len(m.source)):
-                    # a deletion may have skipped characters (other nested deletions)
-                    # we need to make sure we only 'un-delete' the correct characters
-                    if mutDict[refPos][2][offset] == m.deletedPositions[deletedChars]:
-                        
-                        # insert back symbols in the target mutation
-                        mutDict[refPos][1] = mutDict[refPos][1][:offset] + m.source[deletedChars] + mutDict[refPos][1][offset+1:]
-                        deletedChars += 1
-
-                    # move to next symbol
-                    if mutDict[refPos][2][offset] == (0, refPos + counter):
-                        counter += 1
-                    offset += 1
-                    if offset == len(mutDict[refPos][1]):
-                        offset = 0
-                        
-                        # remove 'null' deletions
-                        if mutDict[refPos][0] == mutDict[refPos][1]:
-                            del mutDict[refPos]
-
-                        refPos += counter
-                        counter = 0
+                self.writeGenomeShortIndels(c, file, mutDict, insertionDict, alternative_output_format=alternative_output_format)
 
                   
 
@@ -1458,7 +1774,7 @@ class GenomeTree_hierarchical:
                 del mutDict[m.genomePos]
         
 
-    def write_genome_short(self, tree, output_path, output_file):
+    def write_genome_short(self, tree, output_path, output_file, alternative_output_format):
         # open a file a create a container
         genomefile = open(output_path + output_file + ".txt", "w")
         mutDict = {}
@@ -1466,15 +1782,54 @@ class GenomeTree_hierarchical:
         # call the recursive function - there are two depending on whether or not indels are present
         if self.indels:
             insertionDict = {}
-            self.writeGenomeShortIndels(node=tree, file=genomefile, mutDict=mutDict, insertionDict=insertionDict)
+            self.writeGenomeShortIndels(
+                tree, 
+                genomefile, 
+                mutDict, 
+                insertionDict, 
+                alternative_output_format=alternative_output_format)
+
         else:
             self.writeGenomeShortNoIndels(node=tree, file=genomefile, mutDict=mutDict)
         genomefile.close()
 
 
-    def writeGenomeIndels(self, node, file, nRefList, insertionPositions):
-    
-        raise NotImplementedError("not started this yet") # TODO
+    @wrapWriterWithMutationDict
+    def writeGenomeIndels(self, node, file, mutDict, insertionDict):
+        
+        # print leaf entry to file
+        if node.is_leaf():
+            # first write the header then the sequence directly from the array
+
+            for k, m in mutDict.items():
+
+                # this deals with insertions and substitutions
+                if len(m[0]) == 1:
+                    self.refList[k] = m[1]
+                
+                else:
+                    # deletions
+                    for i, character in enumerate(m[0]):
+                        self.refList[k + i] = ""
+
+            file.write(">" + node.name + "\n"+''.join(self.refList) + "\n")
+
+            # de-update self.refList
+            for k, m in mutDict.items():
+
+                # this deals with insertions and substitutions
+                if len(m[0]) == 1:
+                    self.refList[k] = m[0]
+                
+                else:
+                    # deletions
+                    for i, character in enumerate(m[0]):
+                        self.refList[k + i] = m[0][i]            
+
+        # pass to children
+        else:
+            for c in node.children:
+                self.writeGenomeIndels(c, file, mutDict, insertionDict)
 
     def writeGenomeNoIndels(self, node, file, nRefList):
         # function to write a complete sequence output iteratively
@@ -1484,11 +1839,8 @@ class GenomeTree_hierarchical:
         # print leaf entry to file
         if node.is_leaf():
             # first write the header then the sequence directly from the array
-            #file.write(">" + node.name + "\n")# + (''.join(nRefList)) + "\n")
-            #np.savetxt(file, nRefList,fmt='%s')
-            #nRefList.tofile(file)
             file.write(">" + node.name + "\n"+''.join(nRefList) + "\n")
-            #file.write(">" + node.name + "\n" + np.char.join(nRefList,"") + "\n")
+
         # pass to children
         else:
             for c in node.children:
@@ -1503,10 +1855,9 @@ class GenomeTree_hierarchical:
         # convert reference list to an array
         #refList = np.array(refList)
         if self.indels:
-            #insertionRefList, insertionPositions = self.getAllInsertions(tree)
-            # TODO - not sure if this should be (0,0), what about the -1st site corresponding to the start of the genome? Maybe this should be -2?
-            #self.writeGenomeIndels(tree, file, [refList] + insertionRefList, [(0, 0)] + insertionPositions)
-            pass
+            mutDict, insertionDict = {}, {}
+            self.writeGenomeIndels(node=tree, file=file, mutDict=mutDict, insertionDict=insertionDict)
+
         else:
             self.writeGenomeNoIndels(tree, file, refList)
         file.close()
@@ -1531,15 +1882,59 @@ class GenomeTree_hierarchical:
 
 
     def write_genome_phylip(self, tree, output_path, output_file, refList):
-        # open a file for the phylip output
-        file = open(output_path + output_file + ".phy", "w")
-        file.write("\t" + str(len(tree)) + "\t" + str(len(self.ref)) + "\n")
-        # run the recursive function to write the phylip formatted file
+
         if self.indels:
-            pass
+            print("Phylip output format is not supported yet with indels.")
+        
         else:
+            # open a file for the phylip output
+            file = open(output_path + output_file + ".phy", "w")
+            file.write("\t" + str(len(tree)) + "\t" + str(len(self.ref)) + "\n")
+            # run the recursive function to write the phylip formatted file
             self.writeGenomePhylip(node=tree, file=file, nRefList=refList)
-        file.close()
+            file.close()
+
+
+    def write_genome_mat(self, tree, output_path, output_file):
+        mat = protobuf.data()
+        mat.newick = tree.write(format=1)
+
+        self.writeGenomeMAT(tree, mat)
+
+        f = open(output_path + output_file + ".mat.pb", "wb")
+        f.write(mat.SerializeToString())
+        f.close()
+        
+    def writeGenomeMAT(self, node, mat):
+
+        _ = mat.metadata.add()
+        mutations_protobuf = mat.node_mutations.add()
+        for m in node.mutations:
+            m_pb = mutations_protobuf.mutation.add()
+            m_pb.position = m.genomePos
+            
+            if getattr(m, "insertionPos", 0):
+                m_pb.insertion_position = m.insertionPos
+            
+            if m.mType == mType.INS:
+                m_pb.insertion_index = m.index
+
+            for ch in m.source:
+                if ch == "-":
+                    m_pb.ref_nuc.append(-1)
+                else:
+                    m_pb.ref_nuc.append(self.alleles[ch])
+
+            for ch in m.target:
+                if ch == "-":
+                    m_pb.mut_nuc.append(-1)
+                else:
+                    m_pb.mut_nuc.append(self.alleles[ch])
+            
+        for c in node.children:
+            self.writeGenomeMAT(c, mat)
+
+
 
 
 class GenomeTree_vanilla:
@@ -2023,12 +2418,15 @@ class mutation:
         
 
     def __str__(self):
-        string = "" 
+
+        string = f"{self.source}{self.genomePos + 1}{self.target}" 
+
         if getattr(self, "insertionPos", 0):
-            string += str(self.insertionPos) + ", "
-        string += str(self.genomePos + 1) + ", " + self.source + ", " + self.target
+            string += ("@" + str(self.insertionPos))
+        
         if self.mType == mType.INS:
-            string += (", " + str(self.index))
+            string = str(self.index) + ":" + string
+
         return string
 
 
