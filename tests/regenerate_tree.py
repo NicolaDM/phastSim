@@ -1,10 +1,21 @@
 import os
 from ete3 import Tree
 
-# generate a random example tree using ete3
+# generate a balanced tree with 2**10 leaves using ete3
+def grow_tree(my_tree):
+    for c in my_tree.get_leaves():
+        c.add_child(name=f"{c.name + 'a'}", dist=12.0/30000.0)
+        c.add_child(name=f"{c.name + 'b'}", dist=12.0/30000.0)
+
 t = Tree()
-t.populate(1000, random_branches=True, branch_range=(5,10))
-t.write(format=1, outfile="test_tree.tree")
+for i in range(10):
+    grow_tree(t)
+    
+t.write(format=5, outfile="../phastSim/simulation_output_3/sars-cov-2_test_tree.tree")
+
+#t = Tree()
+#t.populate(2**10, random_branches=True, branch_range=(5,10))
+#t.write(format=1, outfile="test_tree.tree")
 
 
 # run phastSim using the example tree
