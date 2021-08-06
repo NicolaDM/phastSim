@@ -15,7 +15,7 @@ import time
 parser = argparse.ArgumentParser(description='Compare simulators, in particular phastSim, seq-gen, indelible and pyvolve.')
 #parser.add_argument('--path',default="/Users/demaio/Desktop/coronavirus/simulations/", help='Path where to write simulation output.')
 #parser.add_argument('--reference',default="/Users/demaio/Documents/GitHub/phastSim/phastSim/example/MN908947.3.fasta", help='File containing the reference genome to be used as root genome.')
-parser.add_argument('--path',default="/home/will/Desktop/projects/embl/phastSim/simulation_output_4/", help='Path where to write simulation output.')
+parser.add_argument('--path',default="/home/will/Desktop/projects/embl/phastSim/simulation_output_5/", help='Path where to write simulation output.')
 parser.add_argument('--reference',default="/home/will/Desktop/projects/embl/phastSim/phastSim/example/MN908947.3.fasta", help='File containing the reference genome to be used as root genome.')
 parser.add_argument("--nLeaves", help="Ignore tree file and simulate a random tree with the given number of leaves.", type=int, default=0)
 parser.add_argument("--replicates", help="Number of replicate simulations to run", type=int, default=1)

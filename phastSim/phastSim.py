@@ -32,9 +32,6 @@ def setup_argument_parser():
                         type=float, nargs='+', default=[1.0])
     parser.add_argument('--treeFile', default=None,
                         help='Name of file containing the tree used to simulate sequences (newick format).')
-    parser.add_argument('--mutationsTSVinput', default=None,
-                        help='Name of (optional) file containing mutation events that are enforced on the tree.'
-                            'Sites mutated this way become unmutable through the standard simulated mutation process.')
     parser.add_argument('--scale', default=1.0, type=float,
                         help='Scale the simulation tree by this amount (default 1.0). Branch lengths are assumed'
                              ' in terms of expected substitutions per site '
