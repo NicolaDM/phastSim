@@ -63,10 +63,10 @@ Alternatively, if you have cloned this repository, an example command to run the
 ```sh
 mkdir simulation_output
 python bin/phastSim --outpath simulation_output/ --seed 7 --createFasta --createInfo \
-                    --createNewick --createPhylip --treeFile phastSim/example/example_sarscov2_tree.newick \
-                    --scale 0.333333333 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
-                    --hyperMutProbs 0.01 0.01 --hyperMutRates 20.0 200.0 --codon \
-                    --reference phastSim/example/MN908947.3.fasta
+                         --createNewick --createPhylip --treeFile phastSim/example/example_sarscov2_tree.newick \
+                         --scale 3.0 --invariable 0.1 --alpha 1.0 --omegaAlpha 1.0 \
+                         --hyperMutProbs 0.01 0.01 --hyperMutRates 20.0 200.0 --codon \
+                         --reference phastSim/example/MN908947.3.fasta
 ```
 which uses an example SARS-CoV-2 tree included here, specified by `--treeFile phastSim/example/example_sarscov2_tree.newick`, and a reference SARS-CoV-2 genome in FASTA format, provided here and specified by `--reference phastSim/example/MN908947.3.fasta`.
 
