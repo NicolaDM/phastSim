@@ -1,17 +1,19 @@
 import numpy as np
 import argparse
 from importlib_resources import files
-# from ete3 import Tree
+from enum import Enum
+from copy import deepcopy
+from itertools import count
+from bisect import bisect_left
+import phastSim.parsimony_pb2 as protobuf
 
 # CONSTANTS
 class Constants:
     def __init__(self):
-        #self.alleles = {"A": 0, "C": 1, "G": 2, "T": 3, "a": 0, "c": 1, "g": 2, "t": 3, "u": 3, "U": 3}
         self.alleles = {"A": 0, "C": 1, "G": 2, "T": 3}
         self.allelesList = ["A", "C", "G", "T"]
         self.nAlleles = 4
         self.stopCodons = ["TAA", "TGA", "TAG"]
-        #self.range4=range(4)
 
 
 def setup_argument_parser():
@@ -48,11 +50,14 @@ def setup_argument_parser():
                         help="Proportion of invariable sites, that is, sites that have a mutation rate of 0.0 .",
                         type=float, default=0.0)
     parser.add_argument("--mutationRates",
-                        help="Mutation rates, by default using the neutral rates estimated from SARS-CoV-2; so far"
-                             " only exactly 12 input values allowed (r_AC, r_AG, r_AT, r_CA, etc...) corresponding to"
-                             " an UNREST nucleotide substitution model.",
-                        type=float, nargs='+',
-                        default=[0.039, 0.310, 0.123, 0.140, 0.022, 3.028, 0.747, 0.113, 2.953, 0.056, 0.261, 0.036])
+                        help="Mutation rates, by default using the neutral rates estimated from SARS-CoV-2 so far (UNREST model)."
+                             "Possible inputs are: "
+                             "UNREST r_AC r_AG r_AT r_CA etc... (12 values)"
+                             "JC69"
+                             "HKY85 r_transition r_transversion pi_A pi_C pi_G pi_T"
+                             "GTR r_AC r_AG r_AT r_CG r_CT r_GT pi_A pi_C pi_G pi_T",
+                        nargs='+',
+                        default=["UNREST", 0.039, 0.310, 0.123, 0.140, 0.022, 3.028, 0.747, 0.113, 2.953, 0.056, 0.261, 0.036])
     parser.add_argument("--codon",
                         help="Run simulations under a codon model, where mutation rates are used to describe nucleotide"
                              " mutation rates, and omegas are used to describe the effect of selection at the amino acid"
@@ -100,6 +105,8 @@ def setup_argument_parser():
     parser.add_argument('--outputFile', default="sars-cov-2_simulation_output",
                         help='Output file name containing the simulated genomes in succint format. The file will be '
                              'created within the folder specified with --path.')
+    parser.add_argument('--alternative_output_format', help='Produces a succinct txt output file using a modified VCF format', 
+                        action="store_true")
     parser.add_argument("--createNewick",
                         help="Create a newick file annotated with the simulated mutation events "
                              "(default name sars-cov-2_simulation_output.tree).",
@@ -116,6 +123,44 @@ def setup_argument_parser():
                         help="Create a .info file with information regarding the rates at each genome position "
                              "(default name sars-cov-2_simulation_output.info).",
                         action="store_true")
+    parser.add_argument("--createMAT", 
+                        help="Create a mat.pb protocol buffer output file (default name sars-cov-2_simulation_output.mat.pb).",
+                        action="store_true")
+    parser.add_argument("--indels",
+                        help="Allow for insertions and deletions with lengths drawn from a set of configurable parametric distributions",
+                        action="store_true")
+    parser.add_argument("--insertionRate",
+                        help="Distribution for the rates of insertions at each site. Possible values are: "
+                             "CONSTANT x - all sites in the genome have a rate of x"
+                             "GAMMA ins_shape ins_scale - rates drawn from a gamma(ins_shape, ins_scale) distribution",
+                        type=str, nargs='+', default=None)
+    parser.add_argument("--deletionRate",
+                        help="Distribution for the rates of insertions at each site. Possible values are: "
+                             "CONSTANT x - all sites in the genome have a rate of x"
+                             "GAMMA del_shape del_scale - rates drawn from a gamma(del_shape, del_scale) distribution",
+                        type=str, nargs='+', default=None)
+    parser.add_argument("--insertionLength",
+                        help="Genome-wide distributional parameters for insertion lengths at each site."
+                             "Possible values are:"
+                             "GEOMETRIC p - indels distributed with probability mass function (1-p)^k * p."
+                             "NEGBINOMIAL n p - distributed as C(k + n - 1, k) * p^k * (1-p)^-n"
+                             "ZIPF a - distributed as k^-a / Zeta(a)"
+                             "LAVALETTE M a"
+                             "DISCRETE p_1 p_2 p_3 p_4 ... etc. (N values, p_k the probability of an indel of length k)",
+                        type=str, nargs='+', default=None)
+    parser.add_argument("--deletionLength",
+                        help="Genome-wide distributional parameters for deletion lengths at each site."
+                             "Possible values are:"
+                             "GEOMETRIC p - indels distributed with probability mass function (1-p)^k * p."
+                             "NEGBINOMIAL n p - distributed as C(k + n - 1, k) * p^k * (1-p)^-n"
+                             "ZIPF a - distributed as k^-a / Zeta(a)"
+                             "LAVALETTE M a"
+                             "DISCRETE p_1 p_2 p_3 p_4 ... etc. (N values, p_k the probability of an indel of length k)",
+                        type=str, nargs='+', default=None)
+    parser.add_argument('--mutationsTSVinput', 
+                        help='Name of (optional) file containing mutation events that are enforced on the tree.'
+                        'Sites mutated this way become unmutable through the standard simulated mutation process.', 
+                        default=None)
     return parser
 
 
@@ -128,7 +173,6 @@ class phastSimRun:
         self.hierarchy = not self.args.noHierarchy
         self.nCodons = None
         self.range4=range(4)
-
         self.check_default_args()
 
 
@@ -182,39 +226,10 @@ class phastSimRun:
 
 	#Create root genome randomly
     def create_rootGenome_codon(self):
-        rootGenomeFrequencies = self.args.rootGenomeFrequencies
+
+        rootGenomeFrequencies = self.init_insertion_frequencies()
         rootGenomeLength = self.args.rootGenomeLength
 
-        if len(rootGenomeFrequencies) < 2:
-            print("Using codon frequencies from the SARS-CoV-2 genome to define root genome:")
-            rootGenomeFrequencies = [0.03787801, 0.01775209, 0.02012592, 0.03694912, 0.03034369, 0.00701827,
-               0.00371555, 0.03292393, 0.01610073, 0.00412839, 0.00485086, 0.01630715,
-               0.01620394, 0.00970172, 0.02012592, 0.02652493, 0.02611209, 0.00588296,
-               0.01145629, 0.01341728, 0.01620394, 0.00299308, 0.00175457, 0.01971308,
-               0.00175457, 0.00350913, 0.0010321, 0.00877284, 0.01042419, 0.0094953,
-               0.00464444, 0.02755702, 0.0326143, 0.0188874, 0.01269481, 0.0336464,
-               0.01857777, 0.00959851, 0.00258025, 0.03694912, 0.01228197, 0.01063061,
-               0.00175457, 0.03478171, 0.01826814, 0.01135308, 0.0115595, 0.03932294, 0.0,
-               0.01795851, 0.0, 0.02817628, 0.01878419, 0.0052637, 0.00123852, 0.02229332,
-               0.0, 0.00681185, 0.01135308, 0.02353184, 0.02580246, 0.01506863, 0.01692641, 0.03591702]
-            print(rootGenomeFrequencies)
-
-        elif len(rootGenomeFrequencies) != 61 and len(rootGenomeFrequencies) != 64:
-            print("Error, wrong number of root frequencies given")
-            exit()
-
-		#Add stop codon frequencies (set to 0) to list of frequencies
-        if len(rootGenomeFrequencies) == 61:
-            rootGenomeFrequencies = rootGenomeFrequencies[:48] + [0.0] + [rootGenomeFrequencies[48]] + [
-                0.0] + rootGenomeFrequencies[49:54] + [0.0] + rootGenomeFrequencies[54:]
-
-        sum_freq = np.sum(rootGenomeFrequencies)
-
-        for i in range(64):
-            rootGenomeFrequencies[i] = rootGenomeFrequencies[i] / sum_freq
-        if sum_freq > 1.000001 or sum_freq < 0.999999:
-            print("\n Normalizing root state frequencies. New frequencies:")
-            print(rootGenomeFrequencies)
 
         if (rootGenomeLength % 3) != 0:
             print("Codon model, but root genome length not multiple of 3. Simulating " + str(
@@ -237,25 +252,11 @@ class phastSimRun:
 
 
     def create_rootGenome_nuc(self):
-        rootGenomeFrequencies = self.args.rootGenomeFrequencies
+
+        rootGenomeFrequencies = self.init_insertion_frequencies()
         rootGenomeLength = self.args.rootGenomeLength
 
-        if len(rootGenomeFrequencies) < 2:
-            print("Using nucleotide frequencies from the SARS-CoV-2 genome to define root genome:")
-            rootGenomeFrequencies = [0.29943483931378123, 0.18366050229074005, 0.19606728421897468,
-                                     0.32083737417650404]
-            print(rootGenomeFrequencies)
-        elif len(rootGenomeFrequencies) != 4:
-            print("Error, wrong number of root frequencies given")
-            exit()
-
-        sum_freq = np.sum(rootGenomeFrequencies)
-
-        for i in range(4):
-            rootGenomeFrequencies[i] = rootGenomeFrequencies[i] / sum_freq
-        if sum_freq > 1.000001 or sum_freq < 0.999999:
-            print("\n Normalizing root state frequencies. New frequencies:")
-            print(rootGenomeFrequencies)
+        
 
         allelesList = self.const.allelesList
         refList = np.random.choice(allelesList, size=int(rootGenomeLength), replace=True, p=rootGenomeFrequencies)
@@ -266,23 +267,74 @@ class phastSimRun:
 
     def init_substitution_rates(self):
         # substitution rates
-        mutationRates = self.args.mutationRates
-        if len(mutationRates) == 12:
-            print("\n Assuming UNREST nucleotide mutation model.")
-            mutMatrix = np.zeros((4, 4), dtype=float)
-            index = 0
-            for i in range(4):
-                sum = 0.0
-                for j in range(4):
-                    if j != i:
-                        mutMatrix[i][j] = mutationRates[index]
-                        sum += mutationRates[index]
-                        index += 1
-                mutMatrix[i][i] = -sum
-        else:
-            print("\n Number of mutation rates " + str(len(mutationRates)) + ", model not implemented yet.")
-            print(mutationRates)
+        mutationInputs = self.args.mutationRates
+        model = mutationInputs[0]
+
+        if not model.upper() in ["UNREST", "GTR", "JC69", "HKY85"]:
+            print(f"This model, {model}, is not yet implemented, choose one of UNREST, GTR, JC69, HKY85, followed by comma separated parameter values.")
+            print("Use phastSim --help for more information.")
             exit()
+
+        mutationInputs = [float(x) for x in mutationInputs[1:]]
+
+        print(f"Assuming {model} nucleotide mutation model.")
+
+        mutationRates = []
+        if model.upper() == "UNREST":
+            
+            if len(mutationInputs) != 12:
+                print(f"{model.upper()} requires exactly 12 parameters, r_AC, r_AG, r_AT, r_CA, r_CG, r_CT, r_GA, r_GC, r_GT, r_TA, r_TC, r_TG.")
+                print(f"This model had {len(mutationInputs)} parameter values.") 
+                exit()
+            mutationRates = mutationInputs
+
+        elif model.upper() == "GTR":
+            if len(mutationInputs) != 10:
+                print(f"{model.upper()} requires exactly 10 parameters, r_AC, r_AG, r_AT, r_CG, r_CT, r_GT, pi_A, pi_C, pi_G, pi_T.")
+                print(f"This model had {len(mutationInputs)} parameter values.") 
+                exit()
+
+            r_AC, r_AG, r_AT, r_CG, r_CT, r_GT, pi_A, pi_C, pi_G, pi_T = tuple(mutationInputs)
+            
+            mutationRates = [
+                                          r_AC * pi_C, r_AG * pi_G, r_AT * pi_T,
+                             r_AC * pi_A,              r_CG * pi_G, r_CT * pi_T, 
+                             r_AG * pi_A, r_CG * pi_C,              r_GT * pi_T, 
+                             r_AT * pi_A, r_CT * pi_C, r_GT * pi_G]
+
+        elif model.upper() == "JC69":
+
+            mutationRates = [0.25] * 12
+
+        elif model.upper() == "HKY85":
+            
+            if len(mutationInputs) != 6:
+                print(f"{model.upper()} requires exactly 6 parameters, r_transition, r_transversion, pi_A, pi_C, pi_G, pi_T.")
+                print(f"This model had {len(mutationInputs)} parameter values.") 
+                exit()
+
+            # a = alpha = r_transition, b = beta = r_transversion
+            a, b, pi_A, pi_C, pi_G, pi_T = tuple(mutationInputs)
+            mutationRates = [
+                                       b * pi_C, a * pi_G, b * pi_T,
+                             b * pi_A,           b * pi_G, a * pi_T, 
+                             a * pi_A, b * pi_C,           b * pi_T, 
+                             b * pi_A, a * pi_C, b *pi_G]
+
+        else:
+            exit()
+        
+        mutMatrix = np.zeros((4, 4), dtype=float)
+        index = 0
+        for i in range(4):
+            sum = 0.0
+            for j in range(4):
+                if j != i:
+                    mutMatrix[i][j] = mutationRates[index]
+                    sum += mutationRates[index]
+                    index += 1
+            mutMatrix[i][i] = -sum
+
         print("\n Mutation rate matrix:")
         print(mutMatrix)
         return mutMatrix
@@ -298,7 +350,7 @@ class phastSimRun:
             if not self.hierarchy:
                 print("Error, continuous rate model only allowed with hierarchical approach")
                 exit()
-            gammaRates = np.random.gamma(self.args.alpha, 1.0 / self.args.alpha, size=self.ref_len)
+            gammaRates = (np.random.gamma(self.args.alpha, 1.0 / self.args.alpha) for _ in count())
 
         else:
             nCat = len(categoryProbs)
@@ -318,15 +370,41 @@ class phastSimRun:
             print("Using a discrete distribution for variation in rates across the genome.")
             print(categoryProbs)
             print(categoryRates)
-            categories = np.random.choice(nCat, size=self.ref_len, p=categoryProbs)
+            categories = (np.random.choice(nCat, p=categoryProbs) for _ in count())
             self.categories = categories
-            gammaRates=categoryRates[categories]
+            gammaRates=(categoryRates[c] for c in categories)
 
         invariable = self.args.invariable
         if invariable >= 0.000000001:
             print(f"Proportion of invariable {invariable}")
-            categoriesInv = np.random.choice(2, size=self.ref_len, p=[1.0 - invariable, invariable])
-            gammaRates[np.nonzero(categoriesInv)[0]] = 0.0
+            categoriesInv = (np.random.choice(2, p=[1.0 - invariable, invariable]) for _ in count())
+            gammaRates = (0.0 if c else g for (c,g) in zip(categoriesInv, gammaRates))
+
+        mutationsTSVinput=self.args.mutationsTSVinput
+        if (self.args.indels or not self.hierarchy or self.args.codon) and mutationsTSVinput:
+            print("TSV mutations is currently not supported alongside indels, and must use hierarchy mode.")
+            print("Please remove --indels and --noHierarchy flags.")
+            exit()
+
+        if mutationsTSVinput!=None:
+            mutation_file = f'{mutationsTSVinput}'
+            file = open(mutation_file)
+            line=file.readline()
+            preMutationsBranches={}
+            while line!="" and line!="\n": 
+                linelist=line.split()
+                if len(linelist)>1:
+                    branch=linelist[0]
+                    preMutationsBranches[branch]=[]
+                    linelist2=linelist[1].split(",")
+                    for i in range(len(linelist2)):
+                        pos=int(linelist2[i][1:-1])
+                        gammaRates[pos-1]=0.0
+                        preMutationsBranches[branch].append((pos,linelist2[i][0],linelist2[i][-1]))
+                line=file.readline()
+            file.close()
+            print(preMutationsBranches)
+            return gammaRates, preMutationsBranches
 
         mutationsTSVinput=self.args.mutationsTSVinput
         if mutationsTSVinput!=None:
@@ -378,7 +456,7 @@ class phastSimRun:
         newHyperMutProbs = [1.0 - sumHyper] + hyperMutProbs
 
         # sample hypermutability for each site of the genome.
-        hyperCategories = np.random.choice(nProbs + 1, size=self.ref_len, p=newHyperMutProbs)
+        hyperCategories = (np.random.choice(nProbs + 1, p=newHyperMutProbs) for _ in count())
         print("Hypermutation class probabilities:")
         print(newHyperMutProbs)
         print("Hypermutation class rates:")
@@ -406,7 +484,7 @@ class phastSimRun:
         if omegaAlpha >= 0.000000001:
             print("Using a continuous gamma distribution with parameter alpha=" + str(
                 omegaAlpha) + " for variation in omega across codons.")
-            omegas = np.random.gamma(omegaAlpha, 1.0 / omegaAlpha, size=nCodons)
+            omegas = (np.random.gamma(omegaAlpha, 1.0 / omegaAlpha) for _ in count())
         else:
             nCatOmega = len(omegaCategoryProbs)
             nRateOmega = len(omegaCategoryRates)
@@ -426,17 +504,216 @@ class phastSimRun:
             print(omegaCategoryProbs)
             print(omegaCategoryRates)
 
-            omegaCategories = np.random.choice(nCatOmega, size=nCodons, p=omegaCategoryProbs)
-            omegas=omegaCategoryRates[omegaCategories]
+            omegas = (np.random.choice(omegaCategoryRates, p=omegaCategoryProbs) for _ in count())
 
         return omegas
 
+    def init_indel_rates(self):
+
+        if not (self.hierarchy and self.args.indels):
+            print("error, indel model only allowed with hierarchical mode, remove --noHierarchy")
+            print("exiting")
+            exit()
+        
+        def parse_indel_rates(cli_parameters):
+            model = cli_parameters[0]
+            parameter = cli_parameters[1:]
+
+            if not model.upper() in ["GAMMA", "CONSTANT"]:
+                print("error - only indel models allowed are GAMMA or CONSTANT, exiting.")
+                exit()
+
+            if model == "CONSTANT":
+                generator = (float(parameter[0]) for _ in count())
+            
+            else:
+                if len(parameter) != 2:
+                    print("Gamma distribution requires 2 parameters, shape and scale. Exiting")
+                    exit()
+
+                if np.product(parameter) > 0.25:
+                    print("Warning: indels are meant to be rare but the average per nucleotide indel rate is the product of parameters:")
+                    print("Product: " + str(np.product(parameter)))
+
+                generator = (np.random.gamma(parameter[0], parameter[1]) for _ in count())
+            
+            return generator
+
+        insertionGenerator = parse_indel_rates(self.args.insertionRate)
+        deletionGenerator = parse_indel_rates(self.args.deletionRate)
+
+        return (insertionGenerator, deletionGenerator)
+
+
+    def init_indel_lengths(self):
+
+        if not (self.hierarchy and self.args.indels):
+            print("error, indel model only allowed with hierarchical mode, remove --noHierarchy")
+            print("exiting")
+            exit()
+
+        # generate a stream of random indel lengths to be passed to the genomeTree_hierarchical
+        def parse_indel_args(argument_name):
+            indel_data = getattr(self.args, argument_name)
+
+            distribution = indel_data[0].upper()
+            parameters = indel_data[1:]
+
+            if distribution == "GEOMETRIC":
+
+                if len(parameters) != 1:
+                    print(f"{distribution} requires exactly 1 parameter, p.")
+                    print(f"This model had {len(parameters)} parameter values.") 
+                    exit()
+
+                p = float(parameters[0])
+
+                return (np.random.geometric(p) for _ in count())
+
+            elif distribution == "NEGBINOMIAL":
+
+                if len(parameters) != 2:
+                    print(f"{distribution} requires exactly 2 parameters, r p.")
+                    print(f"This model had {len(parameters)} parameter values.") 
+                    exit()
+
+                r = int(parameters[0])
+                p = float(parameters[1])  
+
+                return (1 + np.random.negative_binomial(r, p) for _ in count())
+
+            elif distribution == "ZIPF":
+
+                if len(parameters) != 1:
+                    print(f"{distribution} requires exactly 1 parameter, a.")
+                    print(f"This model had {len(parameters)} parameter values.") 
+                    exit()
+
+                a = float(parameters[0])
+
+                if a <= 1.0:
+                    print(f"Parameter a in Zipf distribution must be > 1 whereas, value is: {a}")
+                    exit()
+
+                return (np.random.zipf(a) for _ in count())
+
+            elif distribution == "LAVALETTE":
+
+                if len(parameters) != 2:
+                    print(f"{distribution} requires exactly 2 parameters, M a.")
+                    print(f"This model had {len(parameters)} parameter values.") 
+                    exit()
+
+                M = int(parameters[0])
+                a = float(parameters[1])
+
+                probs = [(float(i) * float(M)/ float(M - i + 1)) ** (-1 * a) for i in range(1, M+1)]
+
+                total = sum(probs)
+
+                probs = [x/ total for x in probs]
+
+                return (np.random.choice(range(1, M+1), p=probs) for _ in count())
+
+            elif distribution == "DISCRETE":
+
+                if len(parameters) < 1:
+                    print("DISCRETE option requires parameters p_1 p_2, ...etc.")
+                    exit()
+
+                if abs(sum(parameters) - 1) > 0.00001:
+                    print(f"Sum of discrete probabilities adds to {sum(parameters)}, normalising so that the total is 1.")
+                    parameters = [x/sum(parameters) for x in parameters]
+                    print(f"New values are: {parameters}")
+
+                return (np.random.choice(range(1, len(parameters)+1), p=parameters) for _ in count())
+
+            else:
+                print(f"This distribution, {distribution}, is not yet implemented, choose one of ")
+                print("GEOMETRIC, NEGBINOMIAL, ZIPF, LAVALETTE, DISCRETE, followed by comma separated parameter values.")
+                print("Use phastSim --help for more information.")
+                exit()
+
+        insertionLength = parse_indel_args("insertionLength")
+        deletionLength = parse_indel_args("deletionLength")
+
+        return insertionLength, deletionLength
+        
+
+    def init_insertion_frequencies(self):
+        # the model for insertions will be the same as for generating a random root genome, using random choices from
+        # some genome frequency distribution
+
+        if not self.args.codon:
+            rootGenomeFrequencies = self.args.rootGenomeFrequencies
+
+
+            if len(rootGenomeFrequencies) < 2:
+                print("Using nucleotide frequencies from the SARS-CoV-2 genome to define root genome:")
+                rootGenomeFrequencies = [0.29943483931378123, 0.18366050229074005, 0.19606728421897468,
+                                        0.32083737417650404]
+                print(rootGenomeFrequencies)
+            elif len(rootGenomeFrequencies) != 4:
+                print("Error, wrong number of root frequencies given")
+                exit()
+
+            sum_freq = np.sum(rootGenomeFrequencies)
+
+            for i in range(4):
+                rootGenomeFrequencies[i] = rootGenomeFrequencies[i] / sum_freq
+            if sum_freq > 1.000001 or sum_freq < 0.999999:
+                print("\n Normalizing root state frequencies. New frequencies:")
+                print(rootGenomeFrequencies)
+
+            return rootGenomeFrequencies
+
+
+        # generate frequencies under codon model
+        else:
+            rootGenomeFrequencies = self.args.rootGenomeFrequencies
+
+            if len(rootGenomeFrequencies) < 2:
+                print("Using codon frequencies from the SARS-CoV-2 genome to define root genome:")
+                rootGenomeFrequencies = [0.03787801, 0.01775209, 0.02012592, 0.03694912, 0.03034369, 0.00701827,
+                0.00371555, 0.03292393, 0.01610073, 0.00412839, 0.00485086, 0.01630715,
+                0.01620394, 0.00970172, 0.02012592, 0.02652493, 0.02611209, 0.00588296,
+                0.01145629, 0.01341728, 0.01620394, 0.00299308, 0.00175457, 0.01971308,
+                0.00175457, 0.00350913, 0.0010321, 0.00877284, 0.01042419, 0.0094953,
+                0.00464444, 0.02755702, 0.0326143, 0.0188874, 0.01269481, 0.0336464,
+                0.01857777, 0.00959851, 0.00258025, 0.03694912, 0.01228197, 0.01063061,
+                0.00175457, 0.03478171, 0.01826814, 0.01135308, 0.0115595, 0.03932294, 0.0,
+                0.01795851, 0.0, 0.02817628, 0.01878419, 0.0052637, 0.00123852, 0.02229332,
+                0.0, 0.00681185, 0.01135308, 0.02353184, 0.02580246, 0.01506863, 0.01692641, 0.03591702]
+                print(rootGenomeFrequencies)
+
+            elif len(rootGenomeFrequencies) != 61 and len(rootGenomeFrequencies) != 64:
+                print("Error, wrong number of root frequencies given")
+                exit()
+
+            #Add stop codon frequencies (set to 0) to list of frequencies
+            if len(rootGenomeFrequencies) == 61:
+                rootGenomeFrequencies = rootGenomeFrequencies[:48] + [0.0] + [rootGenomeFrequencies[48]] + [
+                    0.0] + rootGenomeFrequencies[49:54] + [0.0] + rootGenomeFrequencies[54:]
+
+            sum_freq = np.sum(rootGenomeFrequencies)
+
+            for i in range(64):
+                rootGenomeFrequencies[i] = rootGenomeFrequencies[i] / sum_freq
+            if sum_freq > 1.000001 or sum_freq < 0.999999:
+                print("\n Normalizing root state frequencies. New frequencies:")
+                print(rootGenomeFrequencies)
+
+                    
+            return rootGenomeFrequencies
 
 
 class GenomeTree_hierarchical:
-    def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, file, verbose):
+    def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, 
+                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, file, verbose):
+
         self.codon = codon
         self.ref = ref
+        self.refList = list(ref)
         self.gammaRates = gammaRates
         self.omegas = omegas
         self.mutMatrix = mutMatrix
@@ -454,11 +731,19 @@ class GenomeTree_hierarchical:
 
         self.alRange = range(const.nAlleles)
         self.range9 = range(9)
+        self.indels = indels
+        self.insertionRate = insertionRate
+        self.insertionLength = insertionLength
+        self.insertionFrequencies = insertionFrequencies
+        self.deletionRate = deletionRate
+        self.deletionLength = deletionLength
+        self.scale = scale
 
         if not codon:
             self.nTerminalNodes = len(ref)
             # we use numpy to efficiently create many copies of the initial mutation matrix
             self.mutMatrixRepeats = np.repeat(mutMatrix[np.newaxis, ...], len(ref), axis=0)
+
 
         else:
             self.nTerminalNodes = nCodons
@@ -482,58 +767,97 @@ class GenomeTree_hierarchical:
 
         # root of the starting (level 0) genome tree
         self.genomeRoot = genomeNode()
-        # position of the genome at which the corresponding node refers to. For the root, it's the whole genome.
-        self.genomeRoot.genomePos = [0, self.nTerminalNodes - 1]
 
+        if self.indels:
+            # keep track of the number of insertions so far
+            self.n_insertions = 0
+            # we will add an extra 'dummy' symbol at the start of the genome. 
+            # insertions can happen at this extra 0th site. 
+            self.nTerminalNodes +=1
 
-    def populateGenomeTree(self, node):
-        node.refNode = node
-        if node.genomePos[0] == node.genomePos[1]:
+    def __str__(self):
+        return str(self.genomeRoot)
+
+    def populate_genome_tree(self):
+        # public function - just calls populateGenomeTree with the correct parameters. 
+        pos_left = (-1 if self.indels else 0)
+        pos_right = (self.nTerminalNodes - 1) if self.indels else self.nTerminalNodes
+        self.populateGenomeTree(self.genomeRoot, self.ref, pos_left, pos_right - 1)
+
+    def populateGenomeTree(self, node, ref, pos_left, pos_right):
+        if pos_left == pos_right:
             # these are terminal nodes. Only these nodes need information regarding specific alleles and rates.
-            pos = node.genomePos[1]
+            node.genomePos = pos_left
+            pos = pos_left
             node.isTerminal = True
             # the corresponding node in the level 0 tree; in this case, it's itself.
             # Only terminal nodes in the level 0 tree need to contain info regarding all mutation rates.
-            #node.refNode = node
+            node.refNode = node
+
+            if self.indels:
+                # set the insertion rate of the node, and the insertion index (i.e. which number insert - 0 meaning the node was on the reference).
+                node.insertionPos = self.n_insertions
+                node.insertionRate = next(self.insertionRate)
+
+                # the first node is a 'dummy' node with allele -1, representing a blank character. 
+                # An insertion can happen at this node, but nothing else. 
+                if (pos == -1):
+                    node.deletionRate = 0.0
+                    node.deletionLength = 0.0
+                    node.rate = 0.0 
+                    node.allele = -1
+                    node.rates = np.zeros(1)
+                    return
+            
+                # set the deletion rates of the (non-lead-character) node
+                node.deletionRate = next(self.deletionRate)
+                node.deletionLength = next(self.deletionLength)
+
             # the current allele at this terminal node. It starts as the reference allele at the considered position.
             if self.codon:
-                node.allele = self.codonAlleles[self.ref[pos * 3:(pos + 1) * 3]]
+                node.allele = self.codonAlleles[ref[pos * 3:(pos + 1) * 3]]
+                node.omega = next(self.omegas)
                 if node.allele in self.stopCodons:
-                    self.omegas[pos] = 0.0
+                    node.omega = 0.0
                     if (pos < self.nTerminalNodes - 1):
                     	print(f"Warning: stop codon in the middle of the reference {pos * 3 + 1}"
-                          f" {self.ref[pos * 3:(pos + 1) * 3]}."
+                          f" {ref[pos * 3:(pos + 1) * 3]}."
                           f"Continuing simulations but setting omega=0 for this position.")
-                #if (pos < self.nTerminalNodes - 1) and (self.ref[pos * 3:(pos + 1) * 3] in self.stopCodons):
-                #    print(f"Warning: stop codon in the middle of the reference {pos * 3 + 1}"
-                #          f" {self.ref[pos * 3:(pos + 1) * 3]}."
-                #          f"Continuing simulations but setting omega=0 for this position.")
-                #    self.omegas[pos] = 0.0
+
+
                 if self.file!=None:
-                	self.file.write(str(pos * 3 + 1) + "-" + str(pos * 3 + 3) + "\t" + str(self.omegas[pos]) + "\t")
+                	self.file.write(str(pos * 3 + 1) + "-" + str(pos * 3 + 3) + "\t" + str(node.omega) + "\t")
                 node.rates = {}
                 node.hyper = {}
+                node.gammaRates = [0.0,0.0,0.0]
+                node.hyperCategories = [0,0,0]
                 #Nicola: create initial mega-array of zeros(10) and pass just index to it?
-                node.rates[node.allele]= self.allRates[pos]
-                #node.rates[node.allele] = np.zeros(10)
-                indeces = self.codonIndices[node.allele]
+                if self.indels and node.insertionPos:
+                    node.rates[node.allele] = np.zeros(10)
+                else:
+                    node.rates[node.allele]= self.allRates[pos]
+
+                indices = self.codonIndices[node.allele]
                 node.rate = 0.0
                 range3=self.range3
+                
                 for i2 in range3:
-                    pos2 = pos * 3 + i2
+
+                    node.hyperCategories[i2] = next(self.hyperCategories)
+                    node.gammaRates[i2] = next(self.gammaRates)
                     if self.file!=None:
-                    	self.file.write(str(self.gammaRates[pos2]) + "\t" + str(self.hyperCategories[pos2]) + "\t")
-                    nuc1 = indeces[i2]
+                    	self.file.write(str(node.gammaRates[i2]) + "\t" + str(node.hyperCategories[i2]) + "\t")
+                    nuc1 = indices[i2]
                     for i3 in range3:
                         nuc2 = (nuc1 + i3 + 1) % 4
                         if self.isNonsynom[node.allele, i2, i3]:
                             if self.isIntoStop[node.allele, i2, i3]:
                                 node.rates[node.allele][i2 * 3 + i3] = 0.0
                             else:
-                                node.rates[node.allele][i2 * 3 + i3] = self.omegas[pos] * self.mutMatrix[nuc1][nuc2] * self.gammaRates[pos2]
+                                node.rates[node.allele][i2 * 3 + i3] = node.omega * self.mutMatrix[nuc1][nuc2] * node.gammaRates[i2]
                         else:
-                            node.rates[node.allele][i2 * 3 + i3] = self.mutMatrix[nuc1][nuc2] * self.gammaRates[pos2]
-                    if self.hyperCategories[pos2] > 0:
+                            node.rates[node.allele][i2 * 3 + i3] = self.mutMatrix[nuc1][nuc2] * node.gammaRates[i2]
+                    if node.hyperCategories[i2] > 0:
                         # site with hypermutation. Sample a random allele i to hypermutate,
                         # and a random destination allele j;
                         # the mutation rate from i to j at the given position is then enhanced.
@@ -541,7 +865,7 @@ class GenomeTree_hierarchical:
                         j = np.random.choice(self.nAlleles - 1)
                         node.hyper[i2] = (i, j)
                         if i == nuc1:
-                            node.rates[node.allele][i2 * 3 + j] *= self.hyperMutRates[self.hyperCategories[pos2] - 1]
+                            node.rates[node.allele][i2 * 3 + j] *= self.hyperMutRates[node.hyperCategories[i2] - 1]
                         if self.file!=None:
                         	self.file.write(self.allelesList[i] + "\t" + self.allelesList[(i + j + 1) % 4] + "\t")
                     else:
@@ -554,21 +878,25 @@ class GenomeTree_hierarchical:
                 	self.file.write("\n")
 
             else:
-                node.allele = self.alleles[self.ref[pos]]
+                node.allele = self.alleles[ref[pos]]
                 # evolutionary categories
-                nodeHyper = self.hyperCategories[pos]
+                node.gammaRate = next(self.gammaRates)
+                nodeHyper = next(self.hyperCategories)
                 if self.file!=None:
-	                self.file.write(str(pos + 1) + "\t" + str(self.gammaRates[pos]) + "\t" + str(nodeHyper) + "\t")
+	                self.file.write(str(pos + 1) + "\t" + str(node.gammaRate) + "\t" + str(nodeHyper) + "\t")
                 # the mutation rates for the considered site
-                node.rates = self.mutMatrixRepeats[pos]
-                node.rates *= self.gammaRates[pos]
+                if self.indels and node.insertionPos:
+                    node.rates = self.mutMatrix.copy()
+                else:
+                    node.rates = self.mutMatrixRepeats[pos]
+                node.rates *= node.gammaRate
                 # node.rates=np.copy(mutMatrix)*categoryRates[node.category]
                 # NICOLA: THIS COULD MAYBE BE MADE MORE EFFICIENT.
                 # FOR EXAMPLE, ONE COULD INITIALIZE RATES ONLY WHEN SAMPLING AT A LEAF,
                 # AND OTHERWISE INITIALIZE ONLY THE TOTAL RATE.
                 # ALSO, INSTATED OF COPYING AND STORING MULTIPLE MUTATION MATRICES, ONE COULD LINK TO THE SAME ONE
                 # FOR SITES WITH THE SAME RATES.
-                # now sample which alleles are affected by hypermutation and store info in positions and extra vectors
+                # now sample which alleles are affected by hypermutation and store info inscale positions and extra vectors
                 if nodeHyper > 0:
                     # site with hypermutation. Sample a random allele i to hypermutate,
                     # and a random destination allele j;
@@ -586,32 +914,67 @@ class GenomeTree_hierarchical:
                 # total mutation rate at the node
                 node.rate -= node.rates[node.allele][node.allele]
 
+
         else:
             # split the considered part of the genome in two, assign each half to both children,
             # then call the populate function iteratively on the children.
-            middle = node.genomePos[0] + int((node.genomePos[1] - node.genomePos[0]) / 2)
-            firstHalf = [node.genomePos[0], middle]
-            secondHalf = [middle + 1, node.genomePos[1]]
-            firstChild = genomeNode()  # upNode=node
-            firstChild.genomePos = firstHalf
-            secondChild = genomeNode()  # upNode=node
-            secondChild.genomePos = secondHalf
+            middle = pos_left + int((pos_right - pos_left) / 2)
+            firstChild = genomeNode(level=node.level)
+            secondChild = genomeNode(level=node.level)
             node.belowNodes = [firstChild, secondChild]
-            self.populateGenomeTree(node=firstChild)
-            self.populateGenomeTree(node=secondChild)
+            self.populateGenomeTree(node=firstChild, ref=ref, pos_left=pos_left, pos_right=middle)
+            self.populateGenomeTree(node=secondChild, ref=ref, pos_left=middle+1, pos_right=pos_right)
             node.rate = firstChild.rate + secondChild.rate
 
+    def check_start_stop_codons(self):
 
-    def normalize_rates(self, scale):
+        if self.codon:
+            # if first codon is a start codon, or last is a stop codon, don't allow them to evolve
+            # if ref[0:3]=="ATG" or ref[0:3]=="atg" or ref[0:3]=="AUG" or ref[0:3]=="aug":
+            if self.ref[0:3] in ["ATG", "AUG"]:
+                # set gammaRates for the first node to 0
+                parent = self.genomeRoot
+                child = parent.belowNodes[0]
+                while (not child.isTerminal):
+                    parent = child
+                    child = parent.belowNodes[0]
+
+                if self.indels:
+                    # the 1st node is a dummy node when using indels so the 2nd node refers to the 1st codon
+                    parent.belowNodes[1].gammaRates = [0.0, 0.0, 0.0]
+                else:
+                    parent.belowNodes[0].gammaRates = [0.0, 0.0, 0.0]
+
+
+            stopCodons = ["TAA", "TGA", "TAG"]
+            if self.ref[-2:] in stopCodons:
+                node = self.genomeRoot
+                while (not node.isTerminal):
+                    node = node.belowNodes[1]
+                
+                node.omega = 0.0
+
+
+    def normalize_rates(self):
+
+        # TODO Check this - is it right?! It's the same as the original code but seems weird. 
+        # Why are we updating self.norm to a value that is just about to get rescaled?!
+        
         # I am assuming the branch lengths are in number of substitutions per nucleotide,
         # even though we might be simulating a codon model.
         norm = self.genomeRoot.rate / len(self.ref)
         self.norm = norm
 
-        print("\n Total cumulative mutation rate per site before normalization: " + str(norm))
+        print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
+        self.normalizeRates(self.genomeRoot)
+
+    def normalizeRates(self, rootNode):
+        # This is an internal function implementation that can be reused elsewhere (e.g. when creating indel inserts).
+
+
         # We rescale by the input normalization factor, this is the same as rescaling all
         # the branch lengths by this rescaling factor
-        norm = norm / scale
+        norm = self.norm / self.scale
 
         # define a function either for codon or nucleotide mode
         if self.codon:
@@ -620,6 +983,7 @@ class GenomeTree_hierarchical:
                 node.rate /= norm
                 if node.isTerminal:
                     node.rates[node.allele] /= norm
+
                 else:
                     normalize(node.belowNodes[0], norm)
                     normalize(node.belowNodes[1], norm)
@@ -630,14 +994,32 @@ class GenomeTree_hierarchical:
                 node.rate /= norm
                 if node.isTerminal:
                     node.rates /= norm
+
                 else:
                     normalize(node.belowNodes[0], norm)
                     normalize(node.belowNodes[1], norm)
 
         # normalize the rates
-        normalize(node=self.genomeRoot, norm=norm)
+        normalize(node=rootNode, norm=norm)
 
+        if self.indels:
+            # if there are indels then some further calculation is require to convert the rates from 
+            # substitution rates to overall rates.
+            
 
+            def include_indels(node, scale):
+                
+                if node.isTerminal:
+                    node.insertionRate *= scale
+                    node.deletionRate *= scale
+                    node.rate += (node.insertionRate + node.deletionRate)
+                
+                else:
+                    node.rate = include_indels(node.belowNodes[0], scale) + include_indels(node.belowNodes[1], scale)
+
+                return node.rate
+
+            include_indels(node=rootNode, scale=self.scale)
 
     # sample a new allele to mutate to, given the mutation rates at a current node
     # NICOLA: THIS MIGHT BE MADE FASTER, ESPECIALLY WITH LARGE STATE SPACES (E.G. CODON MODELS).
@@ -665,6 +1047,134 @@ class GenomeTree_hierarchical:
         exit()
 
 
+    def deleteNodes(self, rand, node, remaining_deletions, level):
+        # This function should be called once findPos has sampled a deletion at a particular node. 
+        # It will recursively traverse the genome tree starting from the root, 'deleting' nodes by 
+        # setting their rates to 0 and their allele as -1, creating the node at a new level if necessary. 
+        # The function then returns the total number of deleted nodes. 
+        # The function avoids traversing the whole genome tree by exiting early if the total number of deletions
+        # has been carried out, or if it is on a branch to the left of the site being deleted. 
+
+        if node.isTerminal:
+            if node.allele == -1:
+                # nodes with this allele are 'empty' symbols and cannot/ should not count as being deleted
+                return 0, ""
+
+            deleted_string = (self.codonAllelesList[node.allele] if self.codon else self.allelesList[node.allele])
+            node.allele = -1
+            node.rate = 0.0
+            node.insertionRate = 0.0
+            node.deletionRate = 0.0
+            return 1, deleted_string
+        
+        else:
+            # nodes need to be created if on a different level, otherwise can directly change nodes
+            child0, child1 = node.belowNodes[0], node.belowNodes[1]
+            rate0, rate1 = child0.rate, child1.rate
+            newRate0, newRate1 = rate0, rate1
+            newChild0, newChild1 = child0, child1
+
+            # deal with the left child
+            deleted_leaves_left = 0
+            deleted_string_left = ""
+            if rand > rate0 or remaining_deletions == 0:
+                # under these conditions we can short circuit and ignore this whole branch
+                pass
+
+            else:
+                if child0.level < level or not (child0.isTerminal and child0.allele == -1):
+                    newChild0 = genomeNode(level=level)
+                    newChild0.isTerminal = child0.isTerminal
+                    newChild0.rate = child0.rate
+
+                    if child0.isTerminal:
+                        newChild0.refNode = child0.refNode
+                        newChild0.allele = child0.allele
+                    else:
+                        newChild0.belowNodes = list(child0.belowNodes)
+
+                
+                deleted_leaves_left, deleted_string_left = self.deleteNodes(rand, newChild0, remaining_deletions, level)
+                newRate0 = newChild0.rate
+
+            # deal with right child but with slightly different exit conditions
+            deleted_leaves_right = 0
+            deleted_string_right = ""
+            if rand > rate0 + rate1 or remaining_deletions - deleted_leaves_left == 0:
+                # can short circuit this child under slightly different conditions
+                pass
+
+            else:
+                if child1.level < level or not (child1.isTerminal and child1.allele == -1):
+                    newChild1 = genomeNode(level=level)
+                    newChild1.isTerminal = child1.isTerminal
+                    newChild1.rate = child1.rate
+
+                    if child1.isTerminal:
+                        newChild1.refNode = child1.refNode
+                        newChild1.allele = child1.allele
+
+                    else:
+                        newChild1.belowNodes = list(child1.belowNodes)
+       
+
+                deleted_leaves_right, deleted_string_right = self.deleteNodes(rand - rate0, newChild1, remaining_deletions - deleted_leaves_left, level)
+                newRate1 = newChild1.rate
+
+            node.rate = newRate0 + newRate1
+            node.belowNodes = [newChild0, newChild1]
+
+            return deleted_leaves_left + deleted_leaves_right, deleted_string_left + deleted_string_right
+
+
+    def sampleInsertion(self, node, level):
+        
+
+        insertion_length = next(self.insertionLength)
+
+        # increment the total insertion counter
+        self.n_insertions += 1
+        
+        insertion = None
+        genomeSeq = ""
+        if self.codon:
+            insertion = np.random.choice(self.codonAllelesList, insertion_length, self.insertionFrequencies)
+        else:
+            insertion = np.random.choice(self.allelesList, insertion_length, self.insertionFrequencies)
+            # turn the nucleotide sequence into a genomeTree
+        
+        genomeSeq = "".join(insertion)
+        # generate the genome tree of this insert from (node, genomeSeq)
+        new_subtree_root = genomeNode(level=level)
+        self.populateGenomeTree(new_subtree_root, genomeSeq, 0, insertion_length-1)
+        self.normalizeRates(new_subtree_root)
+
+        # build a bigger tree of the form node = (node_copied, subTree). 
+        node_copied = deepcopy(node)
+
+        # delete all of the old properties of the node
+        for prop in node_copied.__dict__:
+            delattr(node, prop)
+
+        # set the new properties of the node
+        node.belowNodes = [node_copied, new_subtree_root]
+        node.isTerminal = False       
+        node.level = node_copied.level
+        node.rate = node_copied.rate + new_subtree_root.rate
+        
+        pos = node_copied.refNode.genomePos
+        if self.codon:
+            pos = 3*pos + 2
+
+        mutEvent = mutation(
+                    mType=mType.INS, 
+                    genomePos=pos, 
+                    insertionPos=node_copied.refNode.insertionPos, 
+                    source="",
+                    target=genomeSeq, 
+                    index=self.n_insertions)
+
+        return mutEvent
 
     def findPos(self, rand, parentGenomeNode, level):
         # find position to mutate along the genome, and update temporary genome tree structure as you go
@@ -672,64 +1182,116 @@ class GenomeTree_hierarchical:
             # reached a terminal node, now sample the mutation event at the position and update all rates
             node = parentGenomeNode.refNode
             a = parentGenomeNode.allele
+            
+            # we'll choose an indel if rand is less than a threshold determined by the insertion and deletion rates for this site
+            if self.indels:
+
+                # deletions
+                if rand < node.deletionRate:
+
+                    attempted_deletion_length = next(self.deletionLength)
+                    pos = node.genomePos
+                    deleted_string = ((self.codonAllelesList[node.allele] if self.codon else self.allelesList[node.allele])
+                                         + "?" * (attempted_deletion_length - 1) * (3 if self.codon else 1))
+
+                    mutEvent = mutation(
+                                mType=mType.DEL, 
+                                genomePos=(3 if self.codon else 1) * pos, 
+                                insertionPos=node.insertionPos, 
+                                source=deleted_string, 
+                                target="", 
+                                length=attempted_deletion_length)
+
+                    # In the tidy up function (self.deleteNodes), the length (and also the deleted string) of this mutEvent may be changed 
+                    # if we are in an edge case where we delete at a site very close to the end of the genome. 
+                    # The rates for all nodes are also updated there. 
+                    return mutEvent
+                
+                # else insertion:
+                # rescale rand so that it is uniformly between 0 and insertionRate
+                rand -= node.deletionRate
+                if rand < node.insertionRate:
+                
+                    # sampleInsertion will mutate the parentGenomeNode
+                    mutEvent = self.sampleInsertion(parentGenomeNode, level)
+
+                    return mutEvent
+
+                # rescale rand so that it is uniformly between 0 and the substitution rate := node.rate - (node.insertionRate + node.deletionRate)
+                rand -= node.insertionRate
+            
+            # otherwise we are doing a substitution and can proceed as normal
             if self.codon:
                 j = self.sampleMutationCodon(rates=node.rates[a], rand=rand)
-                indeces = self.codonIndices[a]
+                indices = self.codonIndices[a]
                 i2 = int(j / 3)
                 i3 = j % 3
-                newIndeces = list(indeces)
-                newIndeces[i2] = (newIndeces[i2] + i3 + 1) % 4
-                parentGenomeNode.allele = self.codonIndices2[newIndeces[0], newIndeces[1], newIndeces[2]]
-                mutEvent = [node.genomePos[0] * 3 + i2, indeces[i2], newIndeces[i2]]
+                newindices = list(indices)
+                newindices[i2] = (newindices[i2] + i3 + 1) % 4
+                parentGenomeNode.allele = self.codonIndices2[newindices[0], newindices[1], newindices[2]]
+                mutEvent = mutation(
+                            mType=mType.SUB, 
+                            genomePos=node.genomePos * 3 + i2, 
+                            source=self.allelesList[indices[i2]], 
+                            target=self.allelesList[newindices[i2]])
+
+                if self.indels:
+                    mutEvent.insertionPos = node.insertionPos
+
                 if self.verbose:
                     print(f"Mutation from {a} {self.codonAllelesList[a]} "
                           f"to {parentGenomeNode.allele} {self.codonAllelesList[parentGenomeNode.allele]}"
-                          f" , position {mutEvent[0]} category rate {self.gammaRates[mutEvent[0]]}"
-                          f" hyperCat {self.hyperCategories[mutEvent[0]]}"
-                          f" omega {self.omegas[node.genomePos[0]]}"
+                          f" , position {mutEvent.genomePos} category rate {node.gammaRates[i2]}"
+                          f" hyperCat {node.hyperCategories[i2]}"
+                          f" omega {node.omega}"
                           f" old rate {node.rates[a][9]} old rates:")
                     print(node.rates[a])
                 if not (parentGenomeNode.allele in node.rates):
                     node.rates[parentGenomeNode.allele] = np.zeros(10)
-                    indeces = self.codonIndices[parentGenomeNode.allele]
+                    indices = self.codonIndices[parentGenomeNode.allele]
                     parentGenomeNode.rate = 0.0
                     range3=self.range3
                     for i2 in range3:
-                        pos2 = node.genomePos[0] * 3 + i2
-                        nuc1 = indeces[i2]
+                        nuc1 = indices[i2]
                         for i3 in range3:
                             nuc2 = (nuc1 + i3 + 1) % 4
                             if self.isNonsynom[parentGenomeNode.allele, i2, i3]:
                                 if self.isIntoStop[parentGenomeNode.allele, i2, i3]:
                                     node.rates[parentGenomeNode.allele][i2 * 3 + i3] = 0.0
                                 else:
-                                    node.rates[parentGenomeNode.allele][i2 * 3 + i3] = self.omegas[node.genomePos[0]] * \
+                                    node.rates[parentGenomeNode.allele][i2 * 3 + i3] = node.omega * \
                                                                                        self.mutMatrix[nuc1][nuc2] * \
-                                                                                       self.gammaRates[pos2] / self.norm
+                                                                                       node.gammaRates[i2] / self.norm
                             else:
                                 node.rates[parentGenomeNode.allele][i2 * 3 + i3] = self.mutMatrix[nuc1][nuc2] * \
-                                                                                   self.gammaRates[pos2] / self.norm
-                        if self.hyperCategories[pos2] > 0:
+                                                                                   node.gammaRates[i2] / self.norm
+                        if node.hyperCategories[i2] > 0:
                             if node.hyper[i2][0] == nuc1:
                                 node.rates[parentGenomeNode.allele][i2 * 3 + node.hyper[i2][1]] *= self.hyperMutRates[
-                                    self.hyperCategories[pos2] - 1]
+                                    node.hyperCategories[i2] - 1]
                         for i3 in range3:
                             node.rates[parentGenomeNode.allele][9] += node.rates[parentGenomeNode.allele][i2 * 3 + i3]
                 parentGenomeNode.rate = node.rates[parentGenomeNode.allele][9]
+                if self.indels:
+                    parentGenomeNode.rate += (node.insertionRate + node.deletionRate)
                 if self.verbose:
                     print(f" new rate {parentGenomeNode.rate} all rates:")
                     print(node.rates[parentGenomeNode.allele])
             else:
                 j = self.sampleMutation(a, node.rates[a], rand)
-                mutEvent = [node.genomePos[0], a, j]
+
+                mutEvent = mutation(mType=mType.SUB, genomePos=node.genomePos, source=self.allelesList[a], target=self.allelesList[j])
                 if self.verbose:
                     print(f"Mutation from {a} to {j},"
-                          f" position {node.genomePos[0]}"
-                          f" category rate {self.gammaRates[node.genomePos[0]]}"
-                          f" hyperCat {self.hyperCategories[node.genomePos[0]]}"
+                          f" position {node.genomePos}"
+                          f" category rate {node.gammaRate}"
+                          f" hyperCat {node.hyperCategories}"
                           f" old rate {parentGenomeNode.rate} old rates:")
                     print(node.rates)
                 parentGenomeNode.rate = -node.rates[j, j]
+                if self.indels:
+                    parentGenomeNode.rate += (node.insertionRate + node.deletionRate)
+                    mutEvent.insertionPos = node.insertionPos
                 if self.verbose:
                     print(" new rate " + str(parentGenomeNode.rate) + " all rates:")
                     print(node.rates)
@@ -749,7 +1311,7 @@ class GenomeTree_hierarchical:
                 parentGenomeNode.rate = parentGenomeNode.belowNodes[1].rate
                 childI = 0
 
-            # if the child we are moving into is not on the same level, but is above,
+            # if the child we are moving into is not on the same level, but is below,
             # then create a new child at the same level.
             # this is because the rate of the child will be inevitably changed by the mutation event,
             # and we don't want to change the mutation rates for the parent phylogenetic node.
@@ -757,7 +1319,7 @@ class GenomeTree_hierarchical:
                 newChild = genomeNode(level=level)  # upNode=parentGenomeNode
                 parentGenomeNode.belowNodes[childI] = newChild
                 newChild.isTerminal = child.isTerminal
-                newChild.refNode = child.refNode
+                newChild.rate = child.rate
                 if child.isTerminal:
                     #newChild.refNode = child.refNode
                     newChild.allele = child.allele
@@ -906,7 +1468,69 @@ class GenomeTree_hierarchical:
                 parentGenomeNode.rate += child.rate
             #return mutEvent
 
-    def mutateBranchETEhierarchy(self, childNode, parentGenomeNode, level, createNewick,preMutationsBranches):
+    def applyMutation(self, parentGenomeNode, level, mutEvent):
+        # find position to mutate along the genome, and update temporary genome tree structure as you go.
+        # this one is only used for mutations that are forced by the user
+        node = parentGenomeNode.refNode
+        a = parentGenomeNode.allele
+
+        if parentGenomeNode.isTerminal:
+            # reached a terminal node, now force the mutation event at the position and update all rates
+            j=self.alleles[mutEvent.target]
+
+            if self.verbose:
+                print(f"Forced Mutation from {a} to {j},"
+                        f" position {node.genomePos}"
+                        f" category rate {node.gammaRate}"
+                        f" hyperCat {node.hyperCategories}"
+                        f" old rate {parentGenomeNode.rate} old rates:")
+                print(node.rates)
+
+            if self.verbose:
+                print(" new rate " + str(parentGenomeNode.rate) + " all rates:")
+                print(node.rates)
+            parentGenomeNode.allele = j
+
+        else:
+            # still at an internal genome node.
+            # choose which of the two children genome nodes to move into
+            pos=mutEvent.genomePos
+            child1Pos=parentGenomeNode.belowNodes[0].refNode.genomePos
+
+            if pos>=child1Pos[0] and pos<=child1Pos[1]:
+                parentGenomeNode.rate = parentGenomeNode.belowNodes[1].rate
+                child = parentGenomeNode.belowNodes[0]
+                childI = 0
+            else:
+                parentGenomeNode.rate = parentGenomeNode.belowNodes[0].rate
+                child = parentGenomeNode.belowNodes[1]
+                childI = 1
+
+            # if the child we are moving into is not on the same level, but is above,
+            # then create a new child at the same level.
+            # this is because the rate of the child will be inevitably changed by the mutation event,
+            # and we don't want to change the mutation rates for the parent phylogenetic node.
+            if child.level < level:
+                newChild = genomeNode(level=level)  
+                parentGenomeNode.belowNodes[childI] = newChild
+                newChild.isTerminal = child.isTerminal
+                newChild.refNode=child.refNode
+                if child.isTerminal:
+                    #newChild.refNode = child.refNode
+                    newChild.allele = child.allele
+                else:
+                    newChild.belowNodes = list(child.belowNodes)
+
+                self.applyMutation(newChild, level, mutEvent)
+
+                parentGenomeNode.rate += newChild.rate
+            else:
+                # in this case the child is already on the same level, so no need to create another one, just update its mutation rate.
+                self.applyMutation(child, level, mutEvent)
+                parentGenomeNode.rate += child.rate
+
+
+    def mutateBranchETEhierarchy(self, childNode, parentGenomeNode, level, createNewick, preMutationsBranches):
         # Function to simulate evolution on one branch,using ETE tree structure
         # and using the genome-wide hierarchy structure.
         # given details of the parent node, it generates details of the child node, and updates the hierarchy accordingly.
@@ -931,12 +1555,12 @@ class GenomeTree_hierarchical:
                 fromA=m[1]
                 toA=m[2]
                 print("applying mutation")
-                mutEvent=[pos-1,self.alleles[fromA],self.alleles[toA]]
+                mutEvent=mutation(mType.SUB, pos-1,source=fromA,target=toA)
                 print(mutEvent)
                 self.applyMutation(newGenomeNode, level, mutEvent)
                 childNode.mutations.append(mutEvent)
                 if createNewick:
-                    childNode.mutAnnotation.append(fromA +str(pos)+ toA)
+                    childNode.mutAnnotation.append(str(mutEvent))
             rate = newGenomeNode.rate
 
         # Sample new mutation event with Gillespie algorithm
@@ -945,51 +1569,343 @@ class GenomeTree_hierarchical:
             print(f"\n Node {childNode.name} BLen: {bLen} first sampled time: {currTime}; mutation rate: {rate}")
         # for the first mutation event at this node, create a new root genome node of the appropriate level.
         # otherwise, use the one you already have.
-
+        
         if currTime < bLen and (not (childNode.name in preMutationsBranches)):
         #if currTime < bLen:
             newGenomeNode = genomeNode(level=level)
             newGenomeNode.belowNodes = list(parentGenomeNode.belowNodes)
+        
         elif (not (childNode.name in preMutationsBranches)):
-        #else:
             newGenomeNode = parentGenomeNode
+        
         while currTime < bLen:
             # Now, sample which type of mutation event it is (from which nucleotide to which nucleotide)
             rand = np.random.random() * rate
             if self.verbose:
                 print("Selecting new mutation event. Rate " + str(rate) + " random value " + str(rand))
             mutEvent = self.findPos(rand, newGenomeNode, level)
+            
+            # if the mutation event was a deletion then we need to go through the genome tree and delete the right number of nodes
+            if mutEvent.mType == mType.DEL:
+                # The mutEvent produced by findPos may not actually have managed to produce a deletion of the correct length
+                # (this may happen if a long deletion is sampled near the end of the genome and runs out of symbols).
+                # To deal with this we update the mutEvent once deleteNodes has finished its tidy up - returning the true number
+                # of deleted nodes. 
+                length_deleted, string_deleted = self.deleteNodes(rand, newGenomeNode, mutEvent.length, level)
+                mutEvent.length = length_deleted
+                mutEvent.source = string_deleted
+
+                if self.verbose:
+                    print(f"Deletion occurred: {mutEvent.source} at coordinates ({mutEvent.insertionPos},{mutEvent.genomePos})")
+
             childNode.mutations.append(mutEvent)
             if createNewick:
-                childNode.mutAnnotation.append(self.allelesList[mutEvent[1]] +
-                                               str(mutEvent[0] + 1) +
-                                               self.allelesList[mutEvent[2]])
+                childNode.mutAnnotation.append(str(mutEvent))
             rate = newGenomeNode.rate
             if self.verbose:
                 print(f"New total rate {rate}")
             currTime += np.random.exponential(scale=1.0 / rate)
             if self.verbose:
                 print(f"new time {currTime}, rate {rate} mutation events:")
-                print(childNode.mutations)
+                print([str(m) for m in childNode.mutations])
 
         if self.verbose:
             print("mutations at the end:")
-            print(childNode.mutations)
+            print([str(m) for m in childNode.mutations])
         # now mutate children of the current node, calling this function recursively on the node children.
         for c in childNode.children:
-            self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick,preMutationsBranches)
+            self.mutateBranchETEhierarchy(c, newGenomeNode, level + 1, createNewick, preMutationsBranches)
 
 
+    def getAbsoluteCoords(self, mut, mutDict, insertionDict):
+        """
+        refPos - the position on the reference that this mut appears on. 
+        offset - if the mutation is nested inside another mutation, or not at the start of a series of mutations, 
+        then it may have a non-zero offset, referring to how far along the mutation is inside another already existing mutation. 
+        """
+        if mut.insertionPos:
+            
+            refPos = insertionDict[mut.insertionPos]
+            for offset, coords in enumerate(mutDict[refPos][2]):
+                if (mut.insertionPos, mut.genomePos) == coords:
+                    return refPos, offset
 
-    def writeGenomeShort(self, node, file, mutDict):
-        # function to write a succint output iteratively
-        # update dictionary
+        else:
+            return mut.genomePos, 0
+
+
+    def wrapWriterWithMutationDict(writingFunction):
+        """
+        This function wraps a writing function, by keeping track of a mutDict and insertionDict; the writing function is there
+        just to write the output to the file in the correct format. 
+
+        I've done this because the same wrapper with a mutDict and insertionDict is used in multiple places. 
+
+        This whole function is overly complicated and potentially could be quite slow. 
+        The aim is to 'collapse' all of the (possibly overlapping / nested) indels and substitutions
+        into a concise format. 
+
+        Any advice on how to avoid all this complicated work (either by simplifying the code or deciding on
+        a different but still unambiguous output format) is appreciated!
+
+        mutDict = {
+            position: (original nuc, mutated nucs, list of the coordinates of the new nuc),
+
+            1: (A, -AATTTG, [(0,1), (2,0), (2,1),(5, 0), (5,1), (5,2), (2,2)])
+
+            123: (ATT, "", [])
+
+            456: (A, G, [(0, 456)])
+        }
+
+        insertionDict = {
+            2: 1
+            5: 1
+        }
+
+        (2, 1) -> refPos = 1, offset = 2
+
+        (0, 123) -> refPos = 0, offset = 123
+        
+        mutation(source = "", target = T, insertionPos = 0, genomePos = 123, [index = 6])
+
+        mutation(source = AAAAA, target = "", insertionPos = 0, genomePos = 234)
+
+        """
+
+        def wrappedFunction(self, node, file, mutDict, insertionDict, **kwargs):
+
+
+            # flatten the mutDict + node.mutations into a more concise format, and save indels in insertionDict
+            for m in node.mutations:
+
+                # find the 'absolute' coordinate of the mutation i.e. where it lives relative to the 
+                # already existing mutations in the mutDict. 
+                refPos, offset = self.getAbsoluteCoords(m, mutDict, insertionDict)
+
+                if m.mType == mType.SUB:
+
+                    if refPos in mutDict:
+                        target = mutDict[refPos][1]
+                        mutDict[refPos][1] = target[:offset] + m.target + target[offset+1:]
+
+                        # if the substitution has exactly reversed a previous substitution then we can delete it
+                        if mutDict[refPos][1] == self.ref[refPos]:
+                            del mutDict[refPos]
+
+                    else:
+                        mutDict[refPos] = [self.ref[refPos], m.target, [(m.insertionPos, m.genomePos)]]
+
+                elif m.mType == mType.INS:
+
+                    # add the insertion to the insertion dictionary
+                    insertionDict[m.index] = refPos
+
+                    if refPos in mutDict:
+                        # record the indices i.e. the relative genome coordinates of the existing data
+                        indices = mutDict[refPos][2]
+                        target = mutDict[refPos][1]
+                        
+
+                        # the new data is comprised of: original, new insertion, new indices of genome
+                        mutDict[refPos] = [mutDict[refPos][0], 
+                                        target[:offset+1] + m.target + target[offset+1:],
+                                        indices[:offset+1] + [(m.index, i) for i in range(len(m.target))] + indices[offset+1:]]
+                    
+                    else:
+                        # deal with an edge case where we are at the -1 genome position i.e. right at the start of the genome
+                        first_symbol = (self.ref[refPos] if refPos != -1 else "")
+                        mutDict[refPos] = [first_symbol,
+                                        first_symbol + m.target,
+                                        [(m.insertionPos, m.genomePos)] + [(m.index, i) for i in range(len(m.target))]]
+
+                # deletion - this is the most difficult case
+                else:
+
+                    # need to deal with the deletion one symbol at a time
+                    deletedChars = 0
+                    m.deletedPositions = []
+
+                    appending = False
+                    dictPos = refPos
+
+                    while (deletedChars < len(m.source)):
+
+                        # we may be appending characters to the current deletion one at a time
+                        if appending:
+                            
+                            # if the next character is already in the dictionary, we must stop appending 
+                            if refPos in mutDict:
+                            
+                                appending = False
+                                
+                                # delete a character if it is non-blank
+                                if mutDict[refPos][1][offset] != "-":
+                                    mutDict[refPos][1] = mutDict[refPos][1][:offset] + "-" + mutDict[refPos][1][offset+1:]
+                                    deletedChars += 1
+                                    m.deletedPositions.append(mutDict[refPos][2][offset])
+                            
+                            # otherwise we can continue appending to the deletion 
+                            else:
+                                
+                                mutDict[dictPos][0] += self.ref[refPos]
+                                mutDict[dictPos][1] += "-"
+                                mutDict[dictPos][2] += [(0, refPos)]
+                                deletedChars += 1
+                                m.deletedPositions.append((0, refPos))
+                        
+                        # in this case we are working on an existing deletion, or have just finished doing so
+                        else:
+                            
+                            # a position not ever seen before, we must add it to the dictionary and 
+                            # can append to it
+                            if not dictPos in mutDict:
+                                
+                                mutDict[dictPos] = [self.ref[dictPos], "-", [(0, dictPos)]]
+                                deletedChars += 1
+                                m.deletedPositions.append((0, dictPos))
+                                appending = True
+                                
+                            # delete a character if it is non-blank
+                            else: 
+                                if mutDict[dictPos][1][offset] != "-":
+                                    mutDict[dictPos][1] = mutDict[dictPos][1][:offset] + "-" + mutDict[dictPos][1][offset+1:]
+                                    deletedChars += 1
+                                    m.deletedPositions.append(mutDict[dictPos][2][offset])
+                        
+                        
+                        # now move to the next character
+                        # increment the reference position if we pass it
+                        if mutDict[dictPos][2][offset] == (0, refPos):
+                            refPos += 1  
+                            
+                        # we will change to a new dictionary item if we are not in append mode or are not going to be
+                        offset += 1
+                        if offset == len(mutDict[dictPos][2]):
+                            if not appending or (refPos in mutDict):
+                                appending = False
+                                dictPos = refPos
+                                offset = 0
+
+            # call the writing function - which will write to the file or pass data to the child nodes as appropriate
+            writingFunction(self, node, file, mutDict, insertionDict, **kwargs)
+
+            # de-update the list so it can be used by siblings etc.
+            # we need to do everything in the first part but backwards - terrific
+            for m in reversed(node.mutations):
+
+                refPos, offset = self.getAbsoluteCoords(m, mutDict, insertionDict)
+
+                if m.mType == mType.SUB:
+
+                    if refPos in mutDict:
+                        target = mutDict[refPos][1]
+                        mutDict[refPos][1] = target[:offset] + m.source + target[offset+1:]
+
+                        # if the substitution has exactly reversed a previous substitution then we can delete it
+                        if mutDict[refPos][1] == self.ref[refPos]:
+                            del mutDict[refPos]
+
+                    else:
+                        mutDict[refPos] = [self.ref[refPos], m.source, [(m.insertionPos, m.genomePos)]]
+
+                elif m.mType == mType.INS:
+
+                    # de-update an insertion by removing it from the insertion dictionary 
+                    # and also removing any reference to it in the mutDict
+                    del insertionDict[m.index]
+                    insertionLength = len(m.target)
+
+                    # remove the insertion
+                    mutDict[refPos][1] = mutDict[refPos][1][:offset + 1] + mutDict[refPos][1][offset + insertionLength + 1:]
+                    mutDict[refPos][2] = mutDict[refPos][2][:offset + 1] + mutDict[refPos][2][offset + insertionLength + 1:]
+
+                    # if the de-updated mutation is now identical to the reference genome then delete the dictionary item
+                    if mutDict[refPos][0] == mutDict[refPos][1]:
+                        del mutDict[refPos]
+
+                # deletion - this is the more difficult case - we need to put back everything that had been deleted. 
+                # this may mean putting back an arbitrary string of insertions and substitutions
+                else:
+
+
+                    # need to deal with the deletion one symbol at a time
+                    deletedChars = 0
+                    counter = 0
+
+                    while (deletedChars < len(m.source)):
+                        # a deletion may have skipped characters (other nested deletions)
+                        # we need to make sure we only 'un-delete' the correct characters
+                        if mutDict[refPos][2][offset] == m.deletedPositions[deletedChars]:
+                            
+                            # insert back symbols in the target mutation
+                            mutDict[refPos][1] = mutDict[refPos][1][:offset] + m.source[deletedChars] + mutDict[refPos][1][offset+1:]
+                            deletedChars += 1
+
+                        # move to next symbol
+                        if mutDict[refPos][2][offset] == (0, refPos + counter):
+                            counter += 1
+                        offset += 1
+                        if offset == len(mutDict[refPos][1]):
+                            offset = 0
+                            
+                            # remove 'null' deletions
+                            if mutDict[refPos][0] == mutDict[refPos][1]:
+                                del mutDict[refPos]
+
+                            refPos += counter
+                            counter = 0
+
+        return wrappedFunction
+
+    @wrapWriterWithMutationDict
+    def writeGenomeShortIndels(self, node, file, mutDict, insertionDict, alternative_output_format):
+
+        # print leaf entry to file
+        if node.is_leaf():
+            file.write(">" + node.name + "\n")
+
+            if self.verbose:
+                print(">" + node.name)
+                            
+            mutList = list(mutDict.keys())
+            mutList.sort()
+
+            for pos in mutList:
+                m = mutDict[pos]
+                if not alternative_output_format:
+                    file.write(f"{m[0]}{pos+1}{m[1]}\n")
+
+                else:
+                    if '-' == m[1][0]: # deletion
+                        file.write(f"-\t{pos+1}\t")
+                    
+                    else: # insertion and/or substitution
+                        if m[0][0] != m[1][0]: # substitution
+                            file.write(f"{m[0]}\t{pos+1}\t{m[1]}")
+
+                        if len(m[1]) > 1: # insertion
+                            file.write(f"i\t{pos+1}\t{m[1][1:]}")
+
+                if self.verbose:
+                    print(f"{m[0]}{pos+1}{m[1]}: debug {m}")
+
+        # pass data to children
+        else:
+            for c in node.children:
+                self.writeGenomeShortIndels(c, file, mutDict, insertionDict, alternative_output_format=alternative_output_format)
+
+                  
+
+    def writeGenomeShortNoIndels(self, node, file, mutDict):
+        
         for m in node.mutations:
-            nuc = self.allelesList[m[2]]
-            if nuc != self.ref[m[0]]:
-                mutDict[m[0] + 1] = nuc
+            nuc = m.target
+            if nuc != self.ref[m.genomePos]:
+                mutDict[m.genomePos] = nuc
             else:
-                del mutDict[m[0] + 1]
+                del mutDict[m.genomePos]
+
         # print leaf entry to file
         if node.is_leaf():
             file.write(">" + node.name + "\n")
@@ -1000,54 +1916,105 @@ class GenomeTree_hierarchical:
         # pass dictionary to children
         else:
             for c in node.children:
-                self.writeGenomeShort(c, file, mutDict)
+                self.writeGenomeShortNoIndels(c, file, mutDict)
+
         # de-update the dictionary so it can be used by siblings etc.
         for n in range(len(node.mutations)):
             m = node.mutations[len(node.mutations) - (n + 1)]
-            nuc = self.allelesList[m[1]]
-            if nuc != self.ref[m[0]]:
-                mutDict[m[0] + 1] = nuc
+            nuc = m.source
+
+            if nuc != self.ref[m.genomePos]:
+                mutDict[m.genomePos] = nuc
             else:
-                del mutDict[m[0] + 1]
+                del mutDict[m.genomePos]
+        
 
-
-    def write_genome_short(self, tree, output_path, output_file):
+    def write_genome_short(self, tree, output_path, output_file, alternative_output_format):
         # open a file a create a container
         genomefile = open(output_path + output_file + ".txt", "w")
         mutDict = {}
-        # call the recursive function
-        self.writeGenomeShort(node=tree, file=genomefile, mutDict=mutDict)
+        
+        # call the recursive function - there are two depending on whether or not indels are present
+        if self.indels:
+            insertionDict = {}
+            self.writeGenomeShortIndels(
+                tree, 
+                genomefile, 
+                mutDict, 
+                insertionDict, 
+                alternative_output_format=alternative_output_format)
+
+        else:
+            self.writeGenomeShortNoIndels(node=tree, file=genomefile, mutDict=mutDict)
         genomefile.close()
 
 
-    def writeGenome(self, node, file, nRefList):
-        # function to write a complete sequence output iteratively
-        # update list
-        for m in node.mutations:
-            nRefList[m[0]] = self.allelesList[m[2]]
+    @wrapWriterWithMutationDict
+    def writeGenomeIndels(self, node, file, mutDict, insertionDict):
+        
         # print leaf entry to file
         if node.is_leaf():
             # first write the header then the sequence directly from the array
-            #file.write(">" + node.name + "\n")# + (''.join(nRefList)) + "\n")
-            #np.savetxt(file, nRefList,fmt='%s')
-            #nRefList.tofile(file)
-            file.write(">" + node.name + "\n"+''.join(nRefList) + "\n")
-            #file.write(">" + node.name + "\n" + np.char.join(nRefList,"") + "\n")
+
+            for k, m in mutDict.items():
+
+                # this deals with insertions and substitutions
+                if len(m[0]) == 1:
+                    self.refList[k] = m[1]
+                
+                else:
+                    # deletions
+                    for i, character in enumerate(m[0]):
+                        self.refList[k + i] = ""
+
+            file.write(">" + node.name + "\n"+''.join(self.refList) + "\n")
+
+            # de-update self.refList
+            for k, m in mutDict.items():
+
+                # this deals with insertions and substitutions
+                if len(m[0]) == 1:
+                    self.refList[k] = m[0]
+                
+                else:
+                    # deletions
+                    for i, character in enumerate(m[0]):
+                        self.refList[k + i] = m[0][i]            
+
         # pass to children
         else:
             for c in node.children:
-                self.writeGenome(c, file, nRefList)
+                self.writeGenomeIndels(c, file, mutDict, insertionDict)
+
+    def writeGenomeNoIndels(self, node, file, nRefList):
+        # function to write a complete sequence output iteratively
+        # update list
+        for m in node.mutations:
+            nRefList[m.genomePos] = m.target
+        # print leaf entry to file
+        if node.is_leaf():
+            # first write the header then the sequence directly from the array
+            file.write(">" + node.name + "\n"+''.join(nRefList) + "\n")
+
+        # pass to children
+        else:
+            for c in node.children:
+                self.writeGenomeNoIndels(c, file, nRefList)
         # de-update the list so it can be used by siblings etc.
         for n in range(len(node.mutations)):
             m = node.mutations[len(node.mutations) - (n + 1)]
-            nRefList[m[0]] = self.allelesList[m[1]]
-
+            nRefList[m.genomePos] = m.source
 
     def write_genome(self, tree, output_path, output_file, refList):
         file = open(output_path + output_file + ".fasta", "w")
         # convert reference list to an array
         #refList = np.array(refList)
-        self.writeGenome(tree, file, refList)
+        if self.indels:
+            mutDict, insertionDict = {}, {}
+            self.writeGenomeIndels(node=tree, file=file, mutDict=mutDict, insertionDict=insertionDict)
+
+        else:
+            self.writeGenomeNoIndels(tree, file, refList)
         file.close()
 
 
@@ -1056,7 +2023,7 @@ class GenomeTree_hierarchical:
         # function to write a complete sequence output iteratively
         # update list
         for m in node.mutations:
-            nRefList[m[0]] = self.allelesList[m[2]]
+            nRefList[m.genomePos] = m.target
         # print leaf entry to file
         if node.is_leaf():
             file.write(node.name + "\t" + (''.join(nRefList)) + "\n")
@@ -1066,16 +2033,63 @@ class GenomeTree_hierarchical:
         # de-update the list so it can be used by siblings etc.
         for n in range(len(node.mutations)):
             m = node.mutations[len(node.mutations) - (n + 1)]
-            nRefList[m[0]] = self.allelesList[m[1]]
+            nRefList[m.genomePos] = m.source
 
 
     def write_genome_phylip(self, tree, output_path, output_file, refList):
-        # open a file for the phylip output
-        file = open(output_path + output_file + ".phy", "w")
-        file.write("\t" + str(len(tree)) + "\t" + str(len(self.ref)) + "\n")
-        # run the recursive function to write the phylip formatted file
-        self.writeGenomePhylip(node=tree, file=file, nRefList=refList)
-        file.close()
+
+        if self.indels:
+            print("Phylip output format is not supported yet with indels.")
+        
+        else:
+            # open a file for the phylip output
+            file = open(output_path + output_file + ".phy", "w")
+            file.write("\t" + str(len(tree)) + "\t" + str(len(self.ref)) + "\n")
+            # run the recursive function to write the phylip formatted file
+            self.writeGenomePhylip(node=tree, file=file, nRefList=refList)
+            file.close()
+
+
+    def write_genome_mat(self, tree, output_path, output_file):
+        mat = protobuf.data()
+        mat.newick = tree.write(format=1)
+
+        self.writeGenomeMAT(tree, mat)
+
+        f = open(output_path + output_file + ".mat.pb", "wb")
+        f.write(mat.SerializeToString())
+        f.close()
+        
+    def writeGenomeMAT(self, node, mat):
+
+        _ = mat.metadata.add()
+        mutations_protobuf = mat.node_mutations.add()
+        for m in node.mutations:
+            m_pb = mutations_protobuf.mutation.add()
+            m_pb.position = m.genomePos
+            
+            if getattr(m, "insertionPos", 0):
+                m_pb.insertion_position = m.insertionPos
+            
+            if m.mType == mType.INS:
+                m_pb.insertion_index = m.index
+
+            for ch in m.source:
+                if ch == "-":
+                    m_pb.ref_nuc.append(-1)
+                else:
+                    m_pb.ref_nuc.append(self.alleles[ch])
+
+            for ch in m.target:
+                if ch == "-":
+                    m_pb.mut_nuc.append(-1)
+                else:
+                    m_pb.mut_nuc.append(self.alleles[ch])
+            
+        for c in node.children:
+            self.writeGenomeMAT(c, mat)
+
+
 
 
 class GenomeTree_vanilla:
@@ -1181,6 +2195,8 @@ class GenomeTree_vanilla:
                 for c in range(self.nCat):
                     if j != i:
                         self.totMutMatrix[c][i][j] = self.totMutMatrix[c][i][j] / norm
+        
+
         for e in range(len(self.extras)):
             self.extras[e][0] = self.extras[e][0] / norm
         self.totMut = self.totMut / norm
@@ -1222,7 +2238,7 @@ class GenomeTree_vanilla:
         currTime += np.random.exponential(scale=1.0 / rate)
         if self.verbose:
             print(f"\n Node {childNode.name} BLen: {bLen}. Mutations at start:")
-            print(parentMuts)
+            print([str(m) for m in parentMuts])
             print("num alleles at start:")
             print(parentTotAlleles)
             print(f"tot rate at start: {parentRate}")
@@ -1417,11 +2433,11 @@ class GenomeTree_vanilla:
             currTime += np.random.exponential(scale=1.0 / rate)
             if self.verbose:
                 print(f"new time {currTime}, rate {rate} mutation events:")
-                print(childMutations)
+                print([str(m) for m in childMutations])
 
         if self.verbose:
             print("mutations at the end:")
-            print(childMutations)
+            print([str(m) for m in childMutations])
         childNode.mutations = childMutations
         # now mutate children of the current node, calling this function recursively on the node children.
         for c in childNode.children:
@@ -1526,22 +2542,54 @@ class genomeNode:
         # level of the genome tree hierarchy. higher levels are below, and are not linked by nodes in layers above.
         self.level = level
 
+    def __str__(self):
+        if self.isTerminal:
+            props = self.__dict__
+            short_props = {k:v for k, v in props.items() if k in ["rate", "level", "isTerminal", "allele"]}
+            return "<" +str(short_props) +">"
+        else:
+            f = self.belowNodes[0]
+            s = self.belowNodes[1]
+            return f"({f},rate:{self.rate},level:{self.level},{s})"
 
 
+class mutation:
+    
+    def __init__(self, mType, genomePos, **kwargs):
+        # mutations should have the following properties (depending on their mType):
+        # genomePos - 0 indexed position
+        # insertionPos (if indels) - an index specifying which insert the mutation belongs to (0 for the reference)
+        # source (i.e. what the sequence was originally)
+        # target (i.e. what the sequence was after the mutation)
+        # length (if DEL)
+        # N.B. I am using 'source' and 'target' rather than other words because 'to' and 'from' are python keywords,
+        # so are 'input' and 'output'.
+        # index  (if INS) insertions have an index so that other mutations can refer to them
+        self.mType = mType
+        self.genomePos = genomePos
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
-def check_start_stop_codons(ref, gammaRates, omegas):
-    # if first codon is a start codon, or last is a stop codon, don't allow them to evolve
-    # if ref[0:3]=="ATG" or ref[0:3]=="atg" or ref[0:3]=="AUG" or ref[0:3]=="aug":
-    if ref[0:3] in ["ATG", "atg", "AUG", "aug"]:
-        gammaRates[0] = 0.0
-        gammaRates[1] = 0.0
-        gammaRates[2] = 0.0
-    # stopCodons=["TAA","TGA","TAG","tag","tga","taa","UAG","UAA","UGA","uaa","uag","uga"]
-    stopCodons = ["TAA", "TGA", "TAG"]
-    if ref[-2:] in stopCodons:
-        omegas[-1] = 0.0
+        
 
-    return gammaRates, omegas
+    def __str__(self):
+
+        string = f"{self.source}{self.genomePos + 1}{self.target}" 
+
+        if getattr(self, "insertionPos", 0):
+            string += ("@" + str(self.insertionPos))
+        
+        if self.mType == mType.INS:
+            string = str(self.index) + ":" + string
+
+        return string
+
+
+class mType(Enum):
+    SUB = 1
+    INS = 2
+    DEL = 3
+
 
 
 def codon_translation_list(allelesList):
@@ -1575,19 +2623,19 @@ def codon_lookup_table(translationList, codonIndices, codonIndices2):
     isNonsynom = np.zeros((64, 3, 3), dtype=bool)
     isIntoStop = np.zeros((64, 3, 3), dtype=bool)
     for i1 in range(64):
-        indeces = codonIndices[i1]
+        indices = codonIndices[i1]
         aa = translationList[i1]
-        indeces2 = list(indeces)
+        indices2 = list(indices)
         for i2 in range(3):
             for i3 in range(3):
-                indeces2[i2] = ((indeces[i2] + i3 + 1) % 4)
-                cod2 = codonIndices2[indeces2[0], indeces2[1], indeces2[2]]
+                indices2[i2] = ((indices[i2] + i3 + 1) % 4)
+                cod2 = codonIndices2[indices2[0], indices2[1], indices2[2]]
                 if aa != translationList[cod2]:
                     isNonsynom[i1, i2, i3] = True
                 if translationList[cod2] == "*" and aa != "*":
                     isIntoStop[i1, i2, i3] = True
                 # print(codonAllelesList[i1]+" "+codonAllelesList[cod2]+" into stop.")
-            indeces2[i2] = indeces[i2]
+            indices2[i2] = indices[i2]
 
     return isNonsynom, isIntoStop
 

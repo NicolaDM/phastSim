@@ -1,0 +1,6 @@
+simulation_output/*
+simulation_output_*/*
+.vscode/*
+*.egg-info
+.pytest_cache/*
+*/__pycache__/*

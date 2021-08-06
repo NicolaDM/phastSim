@@ -1,0 +1,57 @@
+/*
+Copyright (c) 2020 Yatish Turakhia (https://turakhia.eng.ucsd.edu/), Haussler Lab (https://hausslergenomics.ucsc.edu/), Corbett-Detig Lab (https://corbett.ucsc.edu/)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+N.B. Compared to the original protobuf file, this has been slightly edited - 
+ref_nuc and mut_nuc are repeated fields (to allow multi-symbol insertions and deletions).
+Additionally, nucleotides are encoded in nucleotide order (A=0,C=1,G=2,T=3) plus 
+the empty dash symbol -=-1.
+
+The position -1 is also allowed - this represents the very start of the genome, and
+another index 'insertion_position' has been added. This is 0 (or omitted) if the mutation happened
+on the base genome, but in situations where a mutation happened on an insert then this
+index is a pointer to that insert. 
+*/
+
+
+syntax = "proto3";                                                                                                                                                                                              
+package Parsimony;
+
+message mut {
+    int32 position = 1;
+    repeated int32 ref_nuc = 2;
+    int32 par_nuc = 3;
+    repeated int32 mut_nuc = 4;
+    string chromosome = 5;
+    int32 insertion_position = 6;
+    int32 insertion_index = 7;
+}
+
+message mutation_list {
+    repeated mut mutation = 1;
+}
+
+message condensed_node {
+    string node_name = 1;
+    repeated string condensed_leaves = 2;
+}
+
+message node_metadata {
+    repeated string clade_annotations = 1;
+}
+
+message data {
+    string newick = 1;
+    repeated mutation_list node_mutations = 2;
+    repeated condensed_node condensed_nodes = 3; 
+    repeated node_metadata metadata = 4; 
+}
