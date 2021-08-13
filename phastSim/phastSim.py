@@ -7,8 +7,6 @@ from itertools import count
 from bisect import bisect_left
 import phastSim.parsimony_pb2 as protobuf
 
-
-
 # CONSTANTS
 class Constants:
     def __init__(self):
@@ -385,6 +383,27 @@ class phastSimRun:
             print("Please remove --indels and --noHierarchy flags.")
             exit()
 
+        if mutationsTSVinput!=None:
+            mutation_file = f'{mutationsTSVinput}'
+            file = open(mutation_file)
+            line=file.readline()
+            preMutationsBranches={}
+            while line!="" and line!="\n": 
+                linelist=line.split()
+                if len(linelist)>1:
+                    branch=linelist[0]
+                    preMutationsBranches[branch]=[]
+                    linelist2=linelist[1].split(",")
+                    for i in range(len(linelist2)):
+                        pos=int(linelist2[i][1:-1])
+                        gammaRates[pos-1]=0.0
+                        preMutationsBranches[branch].append((pos,linelist2[i][0],linelist2[i][-1]))
+                line=file.readline()
+            file.close()
+            print(preMutationsBranches)
+            return gammaRates, preMutationsBranches
+
+        mutationsTSVinput=self.args.mutationsTSVinput
         if mutationsTSVinput!=None:
             mutation_file = f'{mutationsTSVinput}'
             file = open(mutation_file)
@@ -1299,7 +1318,7 @@ class GenomeTree_hierarchical:
                 newChild.isTerminal = child.isTerminal
                 newChild.rate = child.rate
                 if child.isTerminal:
-                    newChild.refNode = child.refNode
+                    #newChild.refNode = child.refNode
                     newChild.allele = child.allele
                 else:
                     newChild.belowNodes = list(child.belowNodes)

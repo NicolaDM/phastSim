@@ -3,6 +3,9 @@
 import numpy as np
 from ete3 import Tree
 import time
+import sys
+#sys.path.append(r'/Users/demaio/Documents/GitHub/phastSim')
+#import phastSim2.phastSim as phastSim
 import phastSim.phastSim as phastSim
 
 
@@ -82,7 +85,10 @@ if sim_run.args.indels:
 
 # Loads a tree structure from a newick string in ETE3. The returned variable t is the root node for the tree.
 start = time.time()
-t = Tree(args.treeFile)
+if args.mutationsTSVinput !=None:
+	t = Tree(args.treeFile,format=1)
+else:
+	t = Tree(args.treeFile)
 time1 = time.time() - start
 print("Time for reading tree with ETE3: " + str(time1))
 	
@@ -106,8 +112,8 @@ else:
 # AND WITH INTERNAL NODES BING MERGING GROUPS OF LOCI CONTAINING INFORMATION ABOUT THEIR CUMULATIVE RATES.
 # THIS WAY UPDATING A MUTATION EVENT REQUIRES COST LOGARITHMIC IN GENOME SIZE EVEN IF EVERY SITE HAS A DIFFERENT RATE. 
 if hierarchy:
-	# CODONS: maybe don't create all the matrices from the start
-	# (might have too large an memory and time preparation cost).
+	# CODONS: don't create all the matrices from the start
+	# (has too large a memory and time preparation cost).
 	# instead, initialize only the rates from the reference allele (only 9 rates are needed),
 	# and store them in a dictionary at level 0 terminal nodes, and when new codons at a position
 	# are reached, extend the dictionary and calculate these new rates.
