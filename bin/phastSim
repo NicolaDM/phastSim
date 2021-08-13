@@ -204,7 +204,7 @@ genome_tree.write_genome_short(
 	tree=t, 
 	output_path=args.outpath, 
 	output_file=args.outputFile, 
-	alternative_output_format=args.alternative_output_format)
+	alternative_output_format=args.alternativeOutputFormat)
 
 time3 = time.time() - start
 print("Total time after writing short file: " + str(time3))

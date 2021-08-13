@@ -104,7 +104,7 @@ def setup_argument_parser():
     parser.add_argument('--outputFile', default="sars-cov-2_simulation_output",
                         help='Output file name containing the simulated genomes in succint format. The file will be '
                              'created within the folder specified with --path.')
-    parser.add_argument('--alternative_output_format', help='Produces a succinct txt output file using a modified VCF format', 
+    parser.add_argument('--alternativeOutputFormat', help='Produces a succinct txt output file using a modified VCF format', 
                         action="store_true")
     parser.add_argument("--createNewick",
                         help="Create a newick file annotated with the simulated mutation events "
@@ -1719,21 +1719,21 @@ class GenomeTree_hierarchical:
             for pos in mutList:
                 m = mutDict[pos]
                 if not alternative_output_format:
-                    file.write(f"{m[0]}{pos+1}{m[1]}\n")
+                    file.write(f"{m[0]}\t{pos+1}\t{m[1]}\n")
 
                 else:
                     if '-' == m[1][0]: # deletion
-                        file.write(f"-\t{pos+1}\t")
+                        file.write(f"-\t{pos+1}\t{len(m[1])}\n")
                     
                     else: # insertion and/or substitution
                         if m[0][0] != m[1][0]: # substitution
-                            file.write(f"{m[0]}\t{pos+1}\t{m[1]}")
+                            file.write(f"{m[0]}\t{pos+1}\t{m[1]}\n")
 
                         if len(m[1]) > 1: # insertion
-                            file.write(f"i\t{pos+1}\t{m[1][1:]}")
+                            file.write(f"i\t{pos+1}\t{m[1][1:]}\n")
 
                 if self.verbose:
-                    print(f"{m[0]}{pos+1}{m[1]}: debug {m}")
+                    print(f"{m[0]}\t{pos+1}\t{m[1]}: debug {m}")
 
         # pass data to children
         else:
