@@ -1349,8 +1349,6 @@ class GenomeTree_hierarchical:
                         f" hyperCat {node.hyperCategories}"
                         f" old rate {parentGenomeNode.rate} old rates:")
                 print(node.rates)
-
-            if self.verbose:
                 print(" new rate " + str(parentGenomeNode.rate) + " all rates:")
                 print(node.rates)
             parentGenomeNode.allele = j
