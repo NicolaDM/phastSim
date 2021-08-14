@@ -65,6 +65,10 @@ def setup_argument_parser():
                              "separate omega. If specified, continuous omega variation is assumed, otherwise homogeneous"
                              " omegas are used unless the --omegaCategoryRates option is used.",
                         type=float, default=0.0)
+    parser.add_argument("--omegaBeta",
+                        help="Second parameter of the gamma distribution for omega variation, in case option omegaAlpha is used."
+                             " This one specifies beta. The mean of the distribution will be alpha/beta, and the variance alpha/(beta^2).",
+                        type=float, default=1.0)
     parser.add_argument("--omegaCategoryProbs",
                         help="Probabilities of omega categories. They are supposed to sum up to one, but if they don't"
                              " they are normalized to do so. By default only 1 category is simulated.",
@@ -468,6 +472,7 @@ class phastSimRun:
             exit()
 
         omegaAlpha = self.args.omegaAlpha
+        omegaBeta = self.args.omegaBeta
         omegaCategoryProbs = self.args.omegaCategoryProbs
         omegaCategoryRates = self.args.omegaCategoryRates
         
@@ -480,8 +485,8 @@ class phastSimRun:
 
         if omegaAlpha >= 0.000000001:
             print("Using a continuous gamma distribution with parameter alpha=" + str(
-                omegaAlpha) + " for variation in omega across codons.")
-            omegas = (np.random.gamma(omegaAlpha, 1.0 / omegaAlpha) for _ in count())
+                omegaAlpha) + " and beta=" +str(omegaBeta)+ " for variation in omega across codons.")
+            omegas = (np.random.gamma(omegaAlpha, 1.0 / omegaBeta) for _ in count())
         else:
             nCatOmega = len(omegaCategoryProbs)
             nRateOmega = len(omegaCategoryRates)
