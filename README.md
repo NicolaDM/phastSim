@@ -113,7 +113,7 @@ Other scripts (in the "scripts" subdirectory) which are not required to run `pha
 
 
 ## Tests
-Tests are not required to run `phastSim` but can be helpful for development, and are also included in this repository. Tests make use of the [pytest](https://docs.pytest.org/en/stable/) package. During development, it can be useful to install `phastSim` in editable mode; to do this run
+Tests are not required to run `phastSim` but can be helpful for development, and are also included in this repository. Tests make use of the [pytest](https://docs.pytest.org/en/    # then crstable/) package. During development, it can be useful to install `phastSim` in editable mode; to do this run
 
 ```sh
 pip install -e .

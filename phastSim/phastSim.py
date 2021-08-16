@@ -1323,7 +1323,7 @@ class GenomeTree_hierarchical:
                 newChild.isTerminal = child.isTerminal
                 newChild.rate = child.rate
                 if child.isTerminal:
-                    #newChild.refNode = child.refNode
+                    newChild.refNode = child.refNode
                     newChild.allele = child.allele
                 else:
                     newChild.belowNodes = list(child.belowNodes)
@@ -1383,7 +1383,7 @@ class GenomeTree_hierarchical:
                 newChild.isTerminal = child.isTerminal
                 newChild.refNode=child.refNode
                 if child.isTerminal:
-                    #newChild.refNode = child.refNode
+                    newChild.refNode = child.refNode
                     newChild.allele = child.allele
                 else:
                     newChild.belowNodes = list(child.belowNodes)
