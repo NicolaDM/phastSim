@@ -386,8 +386,8 @@ class phastSimRun:
 
         mutationsTSVinput=self.args.mutationsTSVinput
         if (self.args.indels or not self.hierarchy or self.args.codon) and mutationsTSVinput:
-            print("TSV mutations is currently not supported alongside indels, and must use hierarchy mode.")
-            print("Please remove --indels and --noHierarchy flags.")
+            print("TSV mutations is currently not supported alongside indels or a codon model, and must use hierarchy mode.")
+            print("Please remove --codon, --indels and --noHierarchy flags.")
             exit()
 
         if mutationsTSVinput!=None:
@@ -395,6 +395,7 @@ class phastSimRun:
             file = open(mutation_file)
             line=file.readline()
             preMutationsBranches={}
+            immutablePositions = []
             while line!="" and line!="\n": 
                 linelist=line.split()
                 if len(linelist)>1:
@@ -403,31 +404,12 @@ class phastSimRun:
                     linelist2=linelist[1].split(",")
                     for i in range(len(linelist2)):
                         pos=int(linelist2[i][1:-1])
-                        gammaRates[pos-1]=0.0
+                        immutablePositions.append(pos - 1)
                         preMutationsBranches[branch].append((pos,linelist2[i][0],linelist2[i][-1]))
                 line=file.readline()
             file.close()
-            print(preMutationsBranches)
-            return gammaRates, preMutationsBranches
-
-        mutationsTSVinput=self.args.mutationsTSVinput
-        if mutationsTSVinput!=None:
-            mutation_file = f'{mutationsTSVinput}'
-            file = open(mutation_file)
-            line=file.readline()
-            preMutationsBranches={}
-            while line!="" and line!="\n": 
-                linelist=line.split()
-                if len(linelist)>1:
-                    branch=linelist[0]
-                    preMutationsBranches[branch]=[]
-                    linelist2=linelist[1].split(",")
-                    for i in range(len(linelist2)):
-                        pos=int(linelist2[i][1:-1])
-                        gammaRates[pos-1]=0.0
-                        preMutationsBranches[branch].append((pos,linelist2[i][0],linelist2[i][-1]))
-                line=file.readline()
-            file.close()
+            
+            gammaRate = (0.0 if c in immutablePositions else g for (c,g) in zip(count(),gammaRates))
             print(preMutationsBranches)
             return gammaRates, preMutationsBranches
 
@@ -714,7 +696,7 @@ class phastSimRun:
 
 class GenomeTree_hierarchical:
     def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, 
-                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, file, verbose, noNorm):
+                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose):
 
         self.codon = codon
         self.ref = ref
@@ -725,7 +707,7 @@ class GenomeTree_hierarchical:
 
         self.hyperCategories = hyperCategories
         self.hyperMutRates = hyperMutRates
-        self.file = file
+        self.infoFile = infoFile
         self.verbose = verbose
 
         const = Constants()
@@ -831,8 +813,8 @@ class GenomeTree_hierarchical:
                           f"Continuing simulations but setting omega=0 for this position.")
 
 
-                if self.file!=None:
-                	self.file.write(str(pos * 3 + 1) + "-" + str(pos * 3 + 3) + "\t" + str(node.omega) + "\t")
+                if self.infoFile!=None:
+                	self.infoFile.write(str(pos * 3 + 1) + "-" + str(pos * 3 + 3) + "\t" + str(node.omega) + "\t")
                 node.rates = {}
                 node.hyper = {}
                 node.gammaRates = [0.0,0.0,0.0]
@@ -851,8 +833,8 @@ class GenomeTree_hierarchical:
 
                     node.hyperCategories[i2] = next(self.hyperCategories)
                     node.gammaRates[i2] = next(self.gammaRates)
-                    if self.file!=None:
-                    	self.file.write(str(node.gammaRates[i2]) + "\t" + str(node.hyperCategories[i2]) + "\t")
+                    if self.infoFile!=None:
+                    	self.infoFile.write(str(node.gammaRates[i2]) + "\t" + str(node.hyperCategories[i2]) + "\t")
                     nuc1 = indices[i2]
                     for i3 in range3:
                         nuc2 = (nuc1 + i3 + 1) % 4
@@ -872,24 +854,24 @@ class GenomeTree_hierarchical:
                         node.hyper[i2] = (i, j)
                         if i == nuc1:
                             node.rates[node.allele][i2 * 3 + j] *= self.hyperMutRates[node.hyperCategories[i2] - 1]
-                        if self.file!=None:
-                        	self.file.write(self.allelesList[i] + "\t" + self.allelesList[(i + j + 1) % 4] + "\t")
+                        if self.infoFile!=None:
+                        	self.infoFile.write(self.allelesList[i] + "\t" + self.allelesList[(i + j + 1) % 4] + "\t")
                     else:
-                        if self.file!=None:
-                        	self.file.write(".\t" + ".\t")
+                        if self.infoFile!=None:
+                        	self.infoFile.write(".\t" + ".\t")
                     for i3 in range3:
                         node.rate += node.rates[node.allele][i2 * 3 + i3]
                     node.rates[node.allele][9] = node.rate
-                if self.file!=None:
-                	self.file.write("\n")
+                if self.infoFile!=None:
+                	self.infoFile.write("\n")
 
             else:
                 node.allele = self.alleles[ref[pos]]
                 # evolutionary categories
                 node.gammaRate = next(self.gammaRates)
                 nodeHyper = next(self.hyperCategories)
-                if self.file!=None:
-	                self.file.write(str(pos + 1) + "\t" + str(node.gammaRate) + "\t" + str(nodeHyper) + "\t")
+                if self.infoFile!=None:
+	                self.infoFile.write(str(pos + 1) + "\t" + str(node.gammaRate) + "\t" + str(nodeHyper) + "\t")
                 # the mutation rates for the considered site
                 if self.indels and node.insertionPos:
                     node.rates = self.mutMatrix.copy()
@@ -912,11 +894,11 @@ class GenomeTree_hierarchical:
                     j = (i + j + 1) % self.nAlleles
                     node.rates[i][i] -= node.rates[i][j] * (self.hyperMutRates[nodeHyper - 1] - 1.0)
                     node.rates[i][j] *= self.hyperMutRates[nodeHyper - 1]
-                    if self.file!=None:
-                    	self.file.write(self.allelesList[i] + "\t" + self.allelesList[j] + "\n")
+                    if self.infoFile!=None:
+                    	self.infoFile.write(self.allelesList[i] + "\t" + self.allelesList[j] + "\n")
                 else:
-                    if self.file!=None:
-                    	self.file.write(".\t" + ".\n")
+                    if self.infoFile!=None:
+                    	self.infoFile.write(".\t" + ".\n")
                 # total mutation rate at the node
                 node.rate -= node.rates[node.allele][node.allele]
 
@@ -962,27 +944,21 @@ class GenomeTree_hierarchical:
 
 
     def normalize_rates(self):
+
+        norm = self.genomeRoot.rate / len(self.ref)
+        self.norm = norm
+
+        print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
         
-        # When normalizing, branch lengths are in number of substitutions per nucleotide,
-        # even though we might be simulating a codon model.
-        if self.noNorm:
-            self.norm = 1.0
-            print("\n Not normalizing mutation rates as required by user. ")
-            self.normalizeRates(self.genomeRoot)
-        else:
-            norm = self.genomeRoot.rate / len(self.ref)
-            self.norm = norm
-            print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
-            self.normalizeRates(self.genomeRoot)
+        # We rescale by the input normalization factor, this is the same as rescaling all
+        # the branch lengths by this rescaling factor
+        self.norm /= self.scale
+        self.normalizeRates(self.genomeRoot)
 
     def normalizeRates(self, rootNode):
         # This is an internal function implementation that can be reused elsewhere (e.g. when creating indel inserts).
 
-
-        # We rescale by the input normalization factor, this is the same as rescaling all
-        # the branch lengths by this rescaling factor
-        norm = self.norm / self.scale
-
+        norm = self.norm
         # define a function either for codon or nucleotide mode
         if self.codon:
             # function to iteratively normalize all rates
@@ -1965,7 +1941,7 @@ class GenomeTree_hierarchical:
 
 
 class GenomeTree_vanilla:
-    def __init__(self, nCat, ref, mutMatrix, categories, categoryRates, hyperMutRates, hyperCategories, file, verbose):
+    def __init__(self, nCat, ref, mutMatrix, categories, categoryRates, hyperMutRates, hyperCategories, infoFile, verbose):
         self.nCat = nCat
         self.ref = ref
         self.mutMatrix = mutMatrix
@@ -1974,7 +1950,7 @@ class GenomeTree_vanilla:
         self.hyperMutRates = hyperMutRates
         self.hyperCategories = hyperCategories
 
-        self.file = file
+        self.infoFile = infoFile
         self.verbose = verbose
 
         const = Constants()
@@ -2007,8 +1983,8 @@ class GenomeTree_vanilla:
             a = self.alleles[self.ref[pos]]
             cat = self.categories[pos]
             hyp = self.hyperCategories[pos]
-            if self.file!=None:
-            	self.file.write(str(pos + 1) + "\t" + str(cat) + "\t" + str(hyp) + "\t")
+            if self.infoFile!=None:
+            	self.infoFile.write(str(pos + 1) + "\t" + str(cat) + "\t" + str(hyp) + "\t")
             # now sample which alleles are affected by hypermutation and store info in positions and extra vectors
             if hyp > 0:
                 i = np.random.choice(4)
@@ -2019,12 +1995,12 @@ class GenomeTree_vanilla:
                     extras.append([self.mutMatrix[a][j] * self.categoryRates[cat] * (self.hyperMutRates[hyp - 1] - 1.0),
                                    pos, len(positions[cat][a]) - 1, cat, hyp, i, j])
                     totMut += self.mutMatrix[a][j] * self.categoryRates[cat] * (self.hyperMutRates[hyp - 1] - 1.0)
-                if self.file!=None:
-                	self.file.write(self.allelesList[i] + "\t" + self.allelesList[j] + "\n")
+                if self.infoFile!=None:
+                	self.infoFile.write(self.allelesList[i] + "\t" + self.allelesList[j] + "\n")
             else:
                 positions[cat][a].append([pos, 0])
-                if self.file!=None:
-                	self.file.write(".\t" + ".\n")
+                if self.infoFile!=None:
+                	self.infoFile.write(".\t" + ".\n")
             #for j in self.range4:
             #    if j != a:
             #        totMutMatrix[cat][a][j] += self.mutMatrix[a][j] * self.categoryRates[cat]
@@ -2036,8 +2012,8 @@ class GenomeTree_vanilla:
         			if j != a:
         				totMut += self.mutMatrix[a][j] * self.categoryRates[c]*totAlleles[c][a]
         				totMutMatrix[cat][a][j]+= self.mutMatrix[a][j] * self.categoryRates[c]*totAlleles[c][a]
-        if self.file!=None:
-        	self.file.close()
+        if self.infoFile!=None:
+        	self.infoFile.close()
 
         print("\n Number of each nucleotide in the genome:")
         print(totAlleles)
