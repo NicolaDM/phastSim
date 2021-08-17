@@ -136,6 +136,7 @@ if hierarchy:
 		deletionRate=deletion_rates, 
 		deletionLength=deletion_lengths,
 		scale=sim_run.args.scale,
+		noNorm=sim_run.args.noNormalization,
 		infoFile=infoFile,
 		verbose=sim_run.args.verbose)
 

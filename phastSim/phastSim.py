@@ -696,7 +696,7 @@ class phastSimRun:
 
 class GenomeTree_hierarchical:
     def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, 
-                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose):
+                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose, noNorm):
 
         self.codon = codon
         self.ref = ref
@@ -944,16 +944,20 @@ class GenomeTree_hierarchical:
 
 
     def normalize_rates(self):
-
-        norm = self.genomeRoot.rate / len(self.ref)
-        self.norm = norm
-
-        print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
         
-        # We rescale by the input normalization factor, this is the same as rescaling all
-        # the branch lengths by this rescaling factor
-        self.norm /= self.scale
-        self.normalizeRates(self.genomeRoot)
+        # When normalizing, branch lengths are in number of substitutions per nucleotide,
+        # even though we might be simulating a codon model.
+        if self.noNorm:
+            self.norm = 1.0/self.scale
+            print("\n Not normalizing mutation rates, as required by user. ")
+            self.normalizeRates(self.genomeRoot)
+        else:
+            # We rescale by the input normalization factor, this is the same as rescaling all
+            # the branch lengths by this rescaling factor
+            norm = self.genomeRoot.rate / (len(self.ref) * self.scale)
+            self.norm = norm
+            print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
+            self.normalizeRates(self.genomeRoot)
 
     def normalizeRates(self, rootNode):
         # This is an internal function implementation that can be reused elsewhere (e.g. when creating indel inserts).
