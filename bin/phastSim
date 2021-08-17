@@ -137,7 +137,8 @@ if hierarchy:
 		deletionLength=deletion_lengths,
 		scale=sim_run.args.scale,
 		file=file,
-		verbose=sim_run.args.verbose)
+		verbose=sim_run.args.verbose,
+		noNorm=sim_run.args.noNormalization)
 
 	time2 = time.time() - start
 	print("Total time after initializing: " + str(time2))
