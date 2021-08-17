@@ -95,15 +95,15 @@ print("Time for reading tree with ETE3: " + str(time1))
 
 # save information about the categories of each site on a file
 if args.createInfo:
-	file = open(args.outpath + args.outputFile + ".info", "w")
+	infoFile = open(args.outpath + args.outputFile + ".info", "w")
 	if args.codon:
-		file.write("pos\t"+"omega\t"+"cat1\t"+"hyperCat1\t"+"hyperAlleleFrom1\t"+"hyperAlleleTo1\t"+
+		infoFile.write("pos\t"+"omega\t"+"cat1\t"+"hyperCat1\t"+"hyperAlleleFrom1\t"+"hyperAlleleTo1\t"+
 				   "cat2\t"+"hyperCat2\t"+"hyperAlleleFrom2\t"+"hyperAlleleTo2\t"+"cat3\t"+"hyperCat3\t"
 				   +"hyperAlleleFrom3\t"+"hyperAlleleTo3\n")
 	else:
-		file.write("pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo\n")
+		infoFile.write("pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo\n")
 else:
-	file=None
+	infoFile=None
 
 
 # Hierarchical approach (DIVIDE ET IMPERA ALONG THE GENOME),
@@ -136,7 +136,7 @@ if hierarchy:
 		deletionRate=deletion_rates, 
 		deletionLength=deletion_lengths,
 		scale=sim_run.args.scale,
-		file=file,
+		infoFile=infoFile,
 		verbose=sim_run.args.verbose)
 
 	time2 = time.time() - start
@@ -183,7 +183,7 @@ else:
 		categoryRates=sim_run.args.categoryRates,
 		hyperMutRates=sim_run.args.hyperMutRates,
 		hyperCategories=hyperCategories,
-		file=file,
+		infoFile=infoFile,
 		verbose=sim_run.args.verbose)
 
 	# prepare the associated lists and mutation rate matrices

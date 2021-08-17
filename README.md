@@ -11,6 +11,7 @@ Fast sequence evolution simulation for SARS-CoV-2 phylogenies and other genomic 
 - [Usage](#usage)
 - [Other included scripts](#other-included-scripts)
 - [Tests](#tests)
+- [Tutorial](#tutorial)
 
 ## Installation and dependencies
 
@@ -113,7 +114,7 @@ Other scripts (in the "scripts" subdirectory) which are not required to run `pha
 
 
 ## Tests
-Tests are not required to run `phastSim` but can be helpful for development, and are also included in this repository. Tests make use of the [pytest](https://docs.pytest.org/en/    # then crstable/) package. During development, it can be useful to install `phastSim` in editable mode; to do this run
+Tests are not required to run `phastSim` but can be helpful for development, and are also included in this repository. Tests make use of the [pytest](https://docs.pytest.org/en/) package. During development, it can be useful to install `phastSim` in editable mode; to do this run
 
 ```sh
 pip install -e .
@@ -122,3 +123,24 @@ pip install -e .
 from the base directory of the project. 
 
 To actually run the tests, do `pytest <name of test>`, and use the `-s` flag if you want the print statements to get printed to stdout. 
+
+## Tutorial
+
+This tutorial covers the most common use cases for phastSim, as well as some edge cases which might otherwise be quite subtle or ambiguous. 
+
+### Basic usage
+
+After installation (perhaps simplest through PyPi: `pip install phastSim`), all of the options available in phastSim are accessed as command-line 
+arguments. 
+```sh
+
+```
+
+### Can I run different models for different parts of the genome?
+
+- No, currently phastSim does not a configuration parameter analogous to the partitions in INDELible and Seq-Gen, though if 
+we are sent multiple requests for this feature then we will add it. 
+
+### How can I run phastSim directly in a python terminal or jupyter notebook?
+
+- This isn't currently recommended, though it is possible. 
