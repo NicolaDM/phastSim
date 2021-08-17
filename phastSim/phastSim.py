@@ -102,6 +102,9 @@ def setup_argument_parser():
     parser.add_argument("--noHierarchy",
                         help="Run without hierarchical algorithm; the latter is faster with more complex models.",
                         action="store_true")
+    parser.add_argument("--noNormalization",
+                        help="Run without normalizing the mutation rates - they are however still scaled by --scale.",
+                        action="store_true")
     parser.add_argument("--verbose", help="Turns on verbose mode.", action="store_true")
     parser.add_argument('--outputFile', default="sars-cov-2_simulation_output",
                         help='Output file name containing the simulated genomes in succint format. The file will be '
@@ -711,7 +714,7 @@ class phastSimRun:
 
 class GenomeTree_hierarchical:
     def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, 
-                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, file, verbose):
+                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, file, verbose, noNorm):
 
         self.codon = codon
         self.ref = ref
@@ -740,6 +743,7 @@ class GenomeTree_hierarchical:
         self.deletionRate = deletionRate
         self.deletionLength = deletionLength
         self.scale = scale
+        self.noNorm = noNorm
 
         if not codon:
             self.nTerminalNodes = len(ref)
@@ -958,17 +962,18 @@ class GenomeTree_hierarchical:
 
 
     def normalize_rates(self):
-
-        # TODO Check this - is it right?! It's the same as the original code but seems weird. 
-        # Why are we updating self.norm to a value that is just about to get rescaled?!
         
-        # I am assuming the branch lengths are in number of substitutions per nucleotide,
+        # When normalizing, branch lengths are in number of substitutions per nucleotide,
         # even though we might be simulating a codon model.
-        norm = self.genomeRoot.rate / len(self.ref)
-        self.norm = norm
-
-        print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
-        self.normalizeRates(self.genomeRoot)
+        if self.noNorm:
+            self.norm = 1.0
+            print("\n Not normalizing mutation rates as required by user. ")
+            self.normalizeRates(self.genomeRoot)
+        else:
+            norm = self.genomeRoot.rate / len(self.ref)
+            self.norm = norm
+            print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
+            self.normalizeRates(self.genomeRoot)
 
     def normalizeRates(self, rootNode):
         # This is an internal function implementation that can be reused elsewhere (e.g. when creating indel inserts).
