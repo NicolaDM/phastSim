@@ -4,8 +4,6 @@ import numpy as np
 from ete3 import Tree
 import time
 import sys
-#sys.path.append(r'/Users/demaio/Documents/GitHub/phastSim')
-#import phastSim2.phastSim as phastSim
 import phastSim.phastSim as phastSim
 
 
@@ -179,10 +177,10 @@ else:
 		nCat=sim_run.nCat,
 		ref=ref,
 		mutMatrix=mutMatrix,
-		categories=sim_run.categories,
+		categories=list(sim_run.categories),
 		categoryRates=sim_run.args.categoryRates,
 		hyperMutRates=sim_run.args.hyperMutRates,
-		hyperCategories=hyperCategories,
+		hyperCategories=list(hyperCategories),
 		infoFile=infoFile,
 		verbose=sim_run.args.verbose)
 

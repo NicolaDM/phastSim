@@ -3,7 +3,7 @@ import argparse
 from importlib_resources import files
 from enum import Enum
 from copy import deepcopy
-from itertools import count
+from itertools import count, chain
 from bisect import bisect_left
 import phastSim.parsimony_pb2 as protobuf
 
@@ -347,7 +347,10 @@ class phastSimRun:
             if not self.hierarchy:
                 print("Error, continuous rate model only allowed with hierarchical approach")
                 exit()
-            gammaRates = (np.random.gamma(self.args.alpha, 1.0 / self.args.alpha) for _ in count())
+            
+            gammaRates = iter(np.random.gamma(self.args.alpha, 1.0 / self.args.alpha, size=self.ref_len))
+            if self.args.indels:
+                gammaRates = chain(gammaRates, (np.random.gamma(self.args.alpha, 1.0 / self.args.alpha) for _ in count()))
 
         else:
             nCat = len(categoryProbs)
@@ -367,14 +370,20 @@ class phastSimRun:
             print("Using a discrete distribution for variation in rates across the genome.")
             print(categoryProbs)
             print(categoryRates)
-            categories = (np.random.choice(nCat, p=categoryProbs) for _ in count())
+            
+            categories = iter(np.random.choice(nCat, p=categoryProbs, size=self.ref_len))
+            if self.args.indels:
+                categories = chain(categories, (np.random.choice(nCat, p=categoryProbs) for _ in count()))
+
             self.categories = categories
             gammaRates=(categoryRates[c] for c in categories)
 
         invariable = self.args.invariable
         if invariable >= 0.000000001:
             print(f"Proportion of invariable {invariable}")
-            categoriesInv = (np.random.choice(2, p=[1.0 - invariable, invariable]) for _ in count())
+            categoriesInv = iter(np.random.choice(2, p=[1.0 - invariable, invariable], size=self.ref_len))
+            if self.args.indels:
+                categoriesInv = (np.random.choice(2, p=[1.0 - invariable, invariable]) for _ in count())
             gammaRates = (0.0 if c else g for (c,g) in zip(categoriesInv, gammaRates))
 
         mutationsTSVinput=self.args.mutationsTSVinput
@@ -435,7 +444,9 @@ class phastSimRun:
         newHyperMutProbs = [1.0 - sumHyper] + hyperMutProbs
 
         # sample hypermutability for each site of the genome.
-        hyperCategories = (np.random.choice(nProbs + 1, p=newHyperMutProbs) for _ in count())
+        hyperCategories = iter(np.random.choice(nProbs + 1, p=newHyperMutProbs, size=self.ref_len))
+        if self.args.indels:
+            hyperCategories = chain(hyperCategories, (np.random.choice(nProbs + 1, p=newHyperMutProbs) for _ in count()))
         print("Hypermutation class probabilities:")
         print(newHyperMutProbs)
         print("Hypermutation class rates:")
@@ -463,7 +474,10 @@ class phastSimRun:
         if omegaAlpha >= 0.000000001:
             print("Using a continuous gamma distribution with parameter alpha=" + str(
                 omegaAlpha) + " for variation in omega across codons.")
-            omegas = (np.random.gamma(omegaAlpha, 1.0 / omegaAlpha) for _ in count())
+
+            omegas = iter(np.random.gamma(omegaAlpha, 1.0 / omegaAlpha, size=self.nCodons))
+            if self.args.indels:
+                omegas = chain(omegas, (np.random.gamma(omegaAlpha, 1.0 / omegaAlpha) for _ in count()))
         else:
             nCatOmega = len(omegaCategoryProbs)
             nRateOmega = len(omegaCategoryRates)
@@ -483,7 +497,9 @@ class phastSimRun:
             print(omegaCategoryProbs)
             print(omegaCategoryRates)
 
-            omegas = (np.random.choice(omegaCategoryRates, p=omegaCategoryProbs) for _ in count())
+            omegas = iter(np.random.choice(omegaCategoryRates, p=omegaCategoryProbs, size=self.nCodons))
+            if self.args.indels:
+                omegas = chain(omegas, (np.random.choice(omegaCategoryRates, p=omegaCategoryProbs) for _ in count()))
 
         return omegas
 
@@ -503,7 +519,8 @@ class phastSimRun:
                 exit()
 
             if model == "CONSTANT":
-                generator = (float(parameter[0]) for _ in count())
+                generator = iter(np.full(parameter[0], self.ref_len))
+                generator = chain(generator, (float(parameter[0]) for _ in count()))
             
             else:
                 if len(parameter) != 2:
@@ -514,7 +531,8 @@ class phastSimRun:
                     print("Warning: indels are meant to be rare but the average per nucleotide indel rate is the product of parameters:")
                     print("Product: " + str(np.product(parameter)))
 
-                generator = (np.random.gamma(parameter[0], parameter[1]) for _ in count())
+                generator = iter(np.random.gamma(parameter[0], parameter[1], size=self.ref_len))
+                generator = chain(generator, (np.random.gamma(parameter[0], parameter[1]) for _ in count()))
             
             return generator
 
@@ -2302,7 +2320,7 @@ class GenomeTree_vanilla:
 
 
 
-    def write_genome_short(self, tree, output_path, output_file):
+    def write_genome_short(self, tree, output_path, output_file, **kwargs):
         # open a file
         genomefile = open(output_path + output_file + ".txt", "w")
         # call the recursive function
