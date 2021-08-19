@@ -3,9 +3,8 @@
 import numpy as np
 from ete3 import Tree
 import time
-import sys
+#import sys
 #sys.path.append(r'/Users/demaio/Documents/GitHub/phastSim')
-#import phastSim2.phastSim as phastSim
 import phastSim.phastSim as phastSim
 
 
