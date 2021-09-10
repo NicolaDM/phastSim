@@ -133,8 +133,73 @@ This tutorial covers the most common use cases for phastSim, as well as some edg
 After installation (perhaps simplest through PyPi: `pip install phastSim`), all of the options available in phastSim are accessed as command-line 
 arguments. 
 ```sh
-
+phastSim --outpath mydirectory/ 
 ```
+Run phastSim using all the default values, and output a succinct txt output file in the output directory. 
+The default tree is found in phastSim/example/exampleTree.tree, while the default reference is the SARS-CoV-2 Wuhan reference genome, in
+the same folder. The default model is an UNREST nucleotide substitution model, with substitution rates tuned for the SARS-CoV-2 genome. 
+
+```sh
+phastSim --outpath mydirectory/ --reference myreference.fasta --mutationRates HKY85 r_transition r_transversion pi_A pi_C pi_G pi_T --seed 10
+```
+Same as before but using a specified reference, substitution model, and random seed. 
+
+```sh
+phastSim --outpath mydirectory/ --reference myreference.fasta --mutationRates HKY85 r_transition r_transversion pi_A pi_C pi_G pi_T \
+--seed 10 --createInfo --createFasta --createNewick --createMAT --createPhylip --verbose
+```
+Same as before but creating more output files:
+- FASTA and PHYLIP files
+- an info file specifying the parameters at each site in the genome (somewhat redundant in this case as they are all the same)
+- a mutation annotated Newick tree
+- a MAT protobuf file
+ 
+
+```sh
+phastSim --outpath mydirectory/ --reference myreference.fasta --treeFile mytree.tree --codon --scale 0.3333333333 \
+        --createPhylip --createFasta --omegaCategoryProbs 0.1 0.2 0.3 0.4 --omegaCategoryRates 1.0 5.0 2.0 2.3 \
+        --hyperMutProbs 0.01 0.04 --hyperMutRates 100 10 --mutationRate JC69
+```
+
+Simulate under a codon model. The software assumes that branch lengths are given in substitutions per nucleotide, so
+if they are actually given in substitutions per codon then all the rates should be scaled by a factor of 1/3 to account for this, 
+hence the --scale 0.333333333. 
+The underlying model for codon mutation is a GY94 model, meaning that each codon has a different value of omega (the ratio of
+non-synonymous/synonymous mutations) speficied by the values given in --omegaCategoryRates, which appear with frequencies
+given by --omegaCategoryProbs. Furthermore, a total of 5% of nucleotides are 'hypermutable', meaning they have a much inflated
+value of mutation from their nucleotide to a randomly selected nucleotide. (In this case, the multipliers for these rates are 100 and 10,
+values of hyperMutRates less than 1 are not allowed.)
+
+
+```sh
+phastSim --outpath mydirectory/ --reference myreference.fasta --treeFile mytree.tree --codon --scale 0.3333333333 \
+        --createPhylip --createFasta --omegaCategoryProbs 0.1 0.2 0.3 0.4 --omegaCategoryRates 1.0 5.0 2.0 2.3 \
+        --hyperMutProbs 0.01 0.04 --hyperMutRates 100 10 --mutationRate JC69 \
+        --indels --insertionRate GAMMA 0.1 1.0 --deletionRate CONSTANT 0.1 --insertionLength GEOMETRIC 0.9 --deletionLength NEGBINOMIAL 2 0.95 \
+        --rootGenomeFrequencies 0
+```
+
+The same simulation as before but also including an indel model. The insertion rate for each codon is drawn from a gamma distribution with
+parameters alpha=0.1 and beta=1.0 (hence a mean of 0.1), whereas the deletion rate for each codon is 0.1 uniformly. The insertion length
+is drawn from a geometric distribution with p=0.9, and hence the mean insertion length is 10/9=1.11111 codons (since this is a codon simulation). 
+Because --rootGenomeFrequencies has been set to 0 (rather than left at the default value which is tuned for SARS-CoV-2), phastSim will
+count the frequencies of each codon during its initialisation, and draw from these frequencies when generating indels. 
+This count assumes the whole genome is in frame 0, which may not be accurate. To override this, it would instead be possible to supply
+frequencies for each of the 64 codons (in alphabetical order) to --rootGenomeFrequencies. 
+
+```sh
+phastSim --outpath mydirectory/ --reference myreference.fasta --treeFile mytree.tree \
+        --categoryRates 1.0 1.1 1.5 2.0 --categoryProbs 0.9 0.01 0.04 0.05 --noHierarchy --createInfo
+```
+
+Use a nucleotide model with the default mutation rates coming from SARS-CoV-2 (since --mutationRates has been left unspecified). 
+Each site in the genome has a rate coming from one of the 4 categories. The --noHierarchy option is compatible with these settings and should
+improve performance. The only outputs are a concise text file containing a list of mutations at each tip of the tree, and an info file
+specifying the category at each nucleotide. 
+
+### How are genome positions indexed?
+
+- In all output files, genomes are 1 indexed (the first nucleotide of the genome is at position 1). 
 
 ### Can I run different models for different parts of the genome?
 
@@ -143,4 +208,32 @@ we are sent multiple requests for this feature then we will add it.
 
 ### How can I run phastSim directly in a python terminal or jupyter notebook?
 
-- This isn't currently recommended, though it is possible. 
+- This isn't currently recommended, though it is possible, essentially by copying the code in the phastSim/bin/phastSim directory. 
+
+### Should I change the mutation rates if I am using a codon model?
+
+- phastSim assumes that branch lengths are given as substitutions per nucleotide, even if using a codon model. If
+they are given as substitutions per codon, you should set --scale 0.33333333 to correctly adjust for this. 
+The effect of --scale is to multiply the rate of each site (nucleotide or codon, depending on the model chosen) by --scale. 
+
+### When can I use the --noHierarchy option?
+
+- the --noHierarchy option is intended for simpler models (where it may result in a substantial increase in performance). It cannot be used with a codon model, with indels, or with non-homogeneous substitution rates (--alpha), though it can be used with --categoryRates. 
+
+### What is the alternative output format?
+
+- phastSim produces a text output file which is far more succinct than full FASTA files. This text file contains a list of mutations for each leaf of the tree, one on each time. These mutations can be written in one of two ways, either tab delimited as nucleotides_from \t position \t nucleotides_to, or using control characters i for insertions and d for deletions. 
+
+### How do indels work in the codon model?
+
+- Insertions and deletions operate on whole codons, and insertions are generated by randomly choosing codons according to the parameter 
+--rootGenomeFrequencies. If this parameter is not specified, but a reference genome is supplied, then the root genome frequencies are calculated
+by counting codons in the reference (using frame 0) - however to turn this behaviour on you need to specifically set --rootGenomeFrequencies to 0, as otherwise it will use a default value, which has been tuned for SARS-CoV-2. 
+
+### I want to create a large number of small trees, should I use phastSim?
+
+- phastSim has a relatively high startup time cost, due to creating a genome-tree data structure in memory, so it is likely to be slower than other simulators when creating a large number of small trees (e.g. 10000 trees each with 1000 tips). Because this startup cost only happens once, modifying the source code in the bin directory to repeatedly run several simulations using different random seeds should solve this issue, and if we are sent several requests for this feature then we will implement it. 
+
+### What is insertionPos in the info file?
+
+- If you use the --indels option then every nucleotide has 2 indices determining its position in the genome. The first of these is the insertionPos, which is an integer, where 0 refers to the root genome and n > 0 refers to the nth insertion created during the simulation. The 2nd index is simply the position of the nucleotide within its insertion, starting at 1. For example, the indices 0, 1049 would refer to the 1049th nucleotide on the reference genome. The indices 4, 3 would refer to the 3rd nucleotide on insertion number 4. 

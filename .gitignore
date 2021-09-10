@@ -4,3 +4,4 @@ simulation_output_*/*
 *.egg-info
 .pytest_cache/*
 */__pycache__/*
+__pycache__/

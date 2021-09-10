@@ -2,9 +2,9 @@ import numpy as np
 import argparse
 from importlib_resources import files
 from enum import Enum
+from collections import Counter
 from copy import deepcopy
-from itertools import count, chain
-from bisect import bisect_left
+from itertools import count, chain, product
 import phastSim.parsimony_pb2 as protobuf
 
 # CONSTANTS
@@ -28,7 +28,8 @@ def setup_argument_parser():
                         type=int, default=0)
     parser.add_argument("--rootGenomeFrequencies",
                         help="Frequencies of different states (non-stop codons or nucleotides depending "
-                             "on the simulations). If not provided, will use those for SARS-CoV-2 reference genome.",
+                             "on the simulations). If not provided, will use those for SARS-CoV-2 reference genome."
+                             "These frequencies are also used when generating indels.",
                         type=float, nargs='+', default=[1.0])
     parser.add_argument('--treeFile', default=None,
                         help='Name of file containing the tree used to simulate sequences (newick format).')
@@ -135,30 +136,32 @@ def setup_argument_parser():
                         action="store_true")
     parser.add_argument("--insertionRate",
                         help="Distribution for the rates of insertions at each site. Possible values are: "
-                             "CONSTANT x - all sites in the genome have a rate of x"
-                             "GAMMA ins_shape ins_scale - rates drawn from a gamma(ins_shape, ins_scale) distribution",
+                             "CONSTANT x - all sites in the genome have a rate of x.\n"
+                             "GAMMA ins_alpha ins_beta - rates drawn from a gamma(ins_alpha, ins_beta) distribution,\n"
+                             "this distribution has mean ins_alpha/ins_beta",
                         type=str, nargs='+', default=None)
     parser.add_argument("--deletionRate",
-                        help="Distribution for the rates of insertions at each site. Possible values are: "
-                             "CONSTANT x - all sites in the genome have a rate of x"
-                             "GAMMA del_shape del_scale - rates drawn from a gamma(del_shape, del_scale) distribution",
+                        help="Distribution for the rates of insertions at each site. Possible values are:\n "
+                             "CONSTANT x - all sites in the genome have a rate of x.\n "
+                             "GAMMA del_alpha del_beta - rates drawn from a gamma(del_alpha, del_beta) distribution,"
+                             "this distribution has mean del_alpha/del_beta",
                         type=str, nargs='+', default=None)
     parser.add_argument("--insertionLength",
                         help="Genome-wide distributional parameters for insertion lengths at each site."
-                             "Possible values are:"
-                             "GEOMETRIC p - indels distributed with probability mass function (1-p)^k * p."
-                             "NEGBINOMIAL n p - distributed as C(k + n - 1, k) * p^k * (1-p)^-n"
-                             "ZIPF a - distributed as k^-a / Zeta(a)"
-                             "LAVALETTE M a"
+                             "Possible values are:\n"
+                             "GEOMETRIC p - indels distributed with probability mass function (1-p)^k * p.\n"
+                             "NEGBINOMIAL n p - distributed as C(k + n - 1, k) * p^k * (1-p)^-n\n"
+                             "ZIPF a - distributed as k^-a / Zeta(a)\n"
+                             "LAVALETTE M a\n"
                              "DISCRETE p_1 p_2 p_3 p_4 ... etc. (N values, p_k the probability of an indel of length k)",
                         type=str, nargs='+', default=None)
     parser.add_argument("--deletionLength",
                         help="Genome-wide distributional parameters for deletion lengths at each site."
-                             "Possible values are:"
-                             "GEOMETRIC p - indels distributed with probability mass function (1-p)^k * p."
-                             "NEGBINOMIAL n p - distributed as C(k + n - 1, k) * p^k * (1-p)^-n"
-                             "ZIPF a - distributed as k^-a / Zeta(a)"
-                             "LAVALETTE M a"
+                             "Possible values are:\n"
+                             "GEOMETRIC p - indels distributed with probability mass function (1-p)^k * p.\n"
+                             "NEGBINOMIAL n p - distributed as C(k + n - 1, k) * p^k * (1-p)^-n\n"
+                             "ZIPF a - distributed as k^-a / Zeta(a)\n"
+                             "LAVALETTE M a\n"
                              "DISCRETE p_1 p_2 p_3 p_4 ... etc. (N values, p_k the probability of an indel of length k)",
                         type=str, nargs='+', default=None)
     parser.add_argument('--mutationsTSVinput', 
@@ -354,6 +357,7 @@ class phastSimRun:
             if not self.hierarchy:
                 print("Error, continuous rate model only allowed with hierarchical approach")
                 exit()
+            
             gammaRates = iter(np.random.gamma(self.args.alpha, 1.0 / self.args.alpha, size=self.ref_len))
             if self.args.indels:
                 gammaRates = chain(gammaRates, (np.random.gamma(self.args.alpha, 1.0 / self.args.alpha) for _ in count()))
@@ -376,9 +380,11 @@ class phastSimRun:
             print("Using a discrete distribution for variation in rates across the genome.")
             print(categoryProbs)
             print(categoryRates)
+            
             categories = iter(np.random.choice(nCat, p=categoryProbs, size=self.ref_len))
             if self.args.indels:
                 categories = chain(categories, (np.random.choice(nCat, p=categoryProbs) for _ in count()))
+
             self.categories = categories
             gammaRates=(categoryRates[c] for c in categories)
 
@@ -442,7 +448,7 @@ class phastSimRun:
 
         sumHyper = np.sum(hyperMutProbs)
         if sumHyper > 0.1:
-            print("WARNING: hypermutable sites are supposed to be rare, but total proportion is " + str(sum))
+            print("WARNING: hypermutable sites are supposed to be rare, but total proportion is " + str(sumHyper))
         if sumHyper > 1.0:
             exit()
         newHyperMutProbs = [1.0 - sumHyper] + hyperMutProbs
@@ -477,9 +483,11 @@ class phastSimRun:
         print("Using a codon model")
 
         if omegaAlpha >= 0.000000001:
-            print("Using a continuous gamma distribution with parameter alpha=" + str(
-                omegaAlpha) + " and beta=" +str(omegaBeta)+ " for variation in omega across codons.")
+            print("Using a continuous gamma distribution with parameter alpha=" + str(omegaAlpha) + 
+                " and beta=" +str(omegaBeta)+ " for variation in omega across codons.")
+
             omegas = iter(np.random.gamma(omegaAlpha, 1.0 / omegaBeta, size=self.nCodons))
+
             if self.args.indels:
                 omegas = chain(omegas, (np.random.gamma(omegaAlpha, 1.0 / omegaBeta) for _ in count()))
         else:
@@ -516,27 +524,27 @@ class phastSimRun:
         
         def parse_indel_rates(cli_parameters):
             model = cli_parameters[0]
-            parameter = cli_parameters[1:]
+            parameter = [float(x) for x in cli_parameters[1:]]
 
             if not model.upper() in ["GAMMA", "CONSTANT"]:
                 print("error - only indel models allowed are GAMMA or CONSTANT, exiting.")
                 exit()
 
             if model == "CONSTANT":
-                generator = iter(np.full(parameter[0], self.ref_len))
-                generator = chain(generator, (float(parameter[0]) for _ in count()))
+                generator = iter(np.full(self.ref_len, parameter[0]))
+                generator = chain(generator, (parameter[0] for _ in count()))
             
             else:
-                if len(parameter) != 2:
-                    print("Gamma distribution requires 2 parameters, shape and scale. Exiting")
+                if len(parameter) != 2 or parameter[0] <= 0 or parameter[1] <= 0:
+                    print("Gamma distribution requires 2 parameters, alpha and beta (shape and rate). Exiting")
                     exit()
 
-                if np.product(parameter) > 0.25:
-                    print("Warning: indels are meant to be rare but the average per nucleotide indel rate is the product of parameters:")
-                    print("Product: " + str(np.product(parameter)))
+                if parameter[0]/parameter[1] > 0.25:
+                    print("Warning: indels are meant to be rare but the average per nucleotide indel rate is the ratio of parameters:")
+                    print("Ratio: " + str(parameter[0]/parameter[1]))
 
-                generator = iter(np.random.gamma(parameter[0], parameter[1], size=self.ref_len))
-                generator = chain(generator, (np.random.gamma(parameter[0], parameter[1]) for _ in count()))
+                generator = iter(np.random.gamma(parameter[0], 1./ parameter[1], size=self.ref_len))
+                generator = chain(generator, (np.random.gamma(parameter[0], 1./ parameter[1]) for _ in count()))
             
             return generator
 
@@ -618,6 +626,8 @@ class phastSimRun:
 
             elif distribution == "DISCRETE":
 
+                parameters = [float(x) for x in parameters]
+
                 if len(parameters) < 1:
                     print("DISCRETE option requires parameters p_1 p_2, ...etc.")
                     exit()
@@ -641,9 +651,27 @@ class phastSimRun:
         return insertionLength, deletionLength
         
 
-    def init_insertion_frequencies(self):
+    def init_insertion_frequencies(self, ref):
         # the model for insertions will be the same as for generating a random root genome, using random choices from
         # some genome frequency distribution
+
+        # in this situation we need to take a look at the reference genome 
+        # and count the occurrences of each symbol (nucleotide or codon)
+        if self.args.indels and self.args.rootGenomeLength == 0 and self.args.rootGenomeFrequencies == [0.0]:
+            if self.args.codon:
+                print("Computing the frequencies of each codon assuming the whole genome is in frame 0.")
+                codons = ["".join(z) for z in product("ACGT", "ACGT", "ACGT")]
+                ref_as_codons = (ref[n:n+3] for n in range(0,len(ref),3))
+                n_codons = int(len(ref)/3)
+                c = Counter(ref_as_codons)
+                self.args.rootGenomeFrequencies = [float(c[x])/float(n_codons) for x in codons]
+                print("Codon frequencies: ", self.args.rootGenomeFrequencies)
+
+            else:
+                print("Counting occurences of each nondegenerate nucleotide in the genome")
+                c = Counter(ref)
+                self.args.rootGenomeFrequencies = [float(c[x])/float(self.ref_len) for x in "ACGT"]
+                print("ACGT frequencies: ", self.args.rootGenomeFrequencies)
 
         if not self.args.codon:
             rootGenomeFrequencies = self.args.rootGenomeFrequencies
@@ -805,7 +833,6 @@ class GenomeTree_hierarchical:
                 # An insertion can happen at this node, but nothing else. 
                 if (pos == -1):
                     node.deletionRate = 0.0
-                    node.deletionLength = 0.0
                     node.rate = 0.0 
                     node.allele = -1
                     node.rates = np.zeros(1)
@@ -813,7 +840,7 @@ class GenomeTree_hierarchical:
             
                 # set the deletion rates of the (non-lead-character) node
                 node.deletionRate = next(self.deletionRate)
-                node.deletionLength = next(self.deletionLength)
+
 
             # the current allele at this terminal node. It starts as the reference allele at the considered position.
             if self.codon:
@@ -828,7 +855,9 @@ class GenomeTree_hierarchical:
 
 
                 if self.infoFile!=None:
-                	self.infoFile.write(str(pos * 3 + 1) + "-" + str(pos * 3 + 3) + "\t" + str(node.omega) + "\t")
+                    if self.indels:
+                        self.infoFile.write(str(node.insertionPos) + "\t")
+                    self.infoFile.write(str(pos * 3 + 1) + "-" + str(pos * 3 + 3) + "\t" + str(node.omega) + "\t")
                 node.rates = {}
                 node.hyper = {}
                 node.gammaRates = [0.0,0.0,0.0]
@@ -877,7 +906,9 @@ class GenomeTree_hierarchical:
                         node.rate += node.rates[node.allele][i2 * 3 + i3]
                     node.rates[node.allele][9] = node.rate
                 if self.infoFile!=None:
-                	self.infoFile.write("\n")
+                    if self.indels:
+                        self.infoFile.write(str(node.insertionRate) + "\t" + str(node.deletionRate))
+                    self.infoFile.write("\n")
 
             else:
                 node.allele = self.alleles[ref[pos]]
@@ -885,7 +916,9 @@ class GenomeTree_hierarchical:
                 node.gammaRate = next(self.gammaRates)
                 nodeHyper = next(self.hyperCategories)
                 if self.infoFile!=None:
-	                self.infoFile.write(str(pos + 1) + "\t" + str(node.gammaRate) + "\t" + str(nodeHyper) + "\t")
+                    if self.indels:
+                        self.infoFile.write(str(node.insertionPos) + "\t")
+                    self.infoFile.write(str(pos + 1) + "\t" + str(node.gammaRate) + "\t" + str(nodeHyper) + "\t")
                 # the mutation rates for the considered site
                 if self.indels and node.insertionPos:
                     node.rates = self.mutMatrix.copy()
@@ -909,10 +942,16 @@ class GenomeTree_hierarchical:
                     node.rates[i][i] -= node.rates[i][j] * (self.hyperMutRates[nodeHyper - 1] - 1.0)
                     node.rates[i][j] *= self.hyperMutRates[nodeHyper - 1]
                     if self.infoFile!=None:
-                    	self.infoFile.write(self.allelesList[i] + "\t" + self.allelesList[j] + "\n")
+                        self.infoFile.write(self.allelesList[i] + "\t" + self.allelesList[j])
+                        if self.indels:
+                            self.infoFile.write("\t" + str(node.insertionRate) + "\t" + str(node.deletionRate))
+                        self.infoFile.write("\n")
                 else:
                     if self.infoFile!=None:
-                    	self.infoFile.write(".\t" + ".\n")
+                        self.infoFile.write(".\t" + ".")
+                        if self.indels:
+                            self.infoFile.write("\t" + str(node.insertionRate) + "\t" + str(node.deletionRate))
+                        self.infoFile.write("\n")
                 # total mutation rate at the node
                 node.rate -= node.rates[node.allele][node.allele]
 
@@ -958,20 +997,22 @@ class GenomeTree_hierarchical:
 
 
     def normalize_rates(self):
-        
+
         # When normalizing, branch lengths are in number of substitutions per nucleotide,
         # even though we might be simulating a codon model.
         if self.noNorm:
             self.norm = 1.0/self.scale
             print("\n Not normalizing mutation rates, as required by user. ")
-            self.normalizeRates(self.genomeRoot)
+
         else:
             # We rescale by the input normalization factor, this is the same as rescaling all
             # the branch lengths by this rescaling factor
             norm = self.genomeRoot.rate / (len(self.ref) * self.scale)
             self.norm = norm
             print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
-            self.normalizeRates(self.genomeRoot)
+        
+        self.normalizeRates(self.genomeRoot)
+
 
     def normalizeRates(self, rootNode):
         # This is an internal function implementation that can be reused elsewhere (e.g. when creating indel inserts).

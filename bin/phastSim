@@ -3,8 +3,6 @@
 import numpy as np
 from ete3 import Tree
 import time
-#import sys
-#sys.path.append(r'/Users/demaio/Documents/GitHub/phastSim')
 import phastSim.phastSim as phastSim
 
 
@@ -77,7 +75,7 @@ if sim_run.args.indels:
 
 	insertion_rates, deletion_rates= sim_run.init_indel_rates()
 	insertion_lengths, deletion_lengths = sim_run.init_indel_lengths()
-	insertion_frequencies = sim_run.init_insertion_frequencies()
+	insertion_frequencies = sim_run.init_insertion_frequencies(ref)
 
 
 
@@ -96,11 +94,17 @@ print("Time for reading tree with ETE3: " + str(time1))
 if args.createInfo:
 	infoFile = open(args.outpath + args.outputFile + ".info", "w")
 	if args.codon:
-		infoFile.write("pos\t"+"omega\t"+"cat1\t"+"hyperCat1\t"+"hyperAlleleFrom1\t"+"hyperAlleleTo1\t"+
+		headerString = ("pos\t"+"omega\t"+"cat1\t"+"hyperCat1\t"+"hyperAlleleFrom1\t"+"hyperAlleleTo1\t"+
 				   "cat2\t"+"hyperCat2\t"+"hyperAlleleFrom2\t"+"hyperAlleleTo2\t"+"cat3\t"+"hyperCat3\t"
-				   +"hyperAlleleFrom3\t"+"hyperAlleleTo3\n")
+				   +"hyperAlleleFrom3\t"+"hyperAlleleTo3")
 	else:
-		infoFile.write("pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo\n")
+		headerString = "pos\t"+"cat\t"+"hyperCat\t"+"hyperAlleleFrom\t"+"hyperAlleleTo"
+	if args.indels:
+		headerString += "\t" + "insertionRate\t" + "deletionRate"
+		headerString = "insertionPos\t" + headerString
+
+	headerString += "\n"
+	infoFile.write(headerString)
 else:
 	infoFile=None
 
@@ -135,9 +139,9 @@ if hierarchy:
 		deletionRate=deletion_rates, 
 		deletionLength=deletion_lengths,
 		scale=sim_run.args.scale,
-		noNorm=sim_run.args.noNormalization,
 		infoFile=infoFile,
-		verbose=sim_run.args.verbose)
+		verbose=sim_run.args.verbose,
+		noNorm=sim_run.args.noNormalization)
 
 	time2 = time.time() - start
 	print("Total time after initializing: " + str(time2))
