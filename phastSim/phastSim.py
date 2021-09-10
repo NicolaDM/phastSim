@@ -66,6 +66,10 @@ def setup_argument_parser():
                              "separate omega. If specified, continuous omega variation is assumed, otherwise homogeneous"
                              " omegas are used unless the --omegaCategoryRates option is used.",
                         type=float, default=0.0)
+    parser.add_argument("--omegaBeta",
+                        help="Second parameter of the gamma distribution for omega variation, in case option omegaAlpha is used."
+                             " This one specifies beta. The mean of the distribution will be alpha/beta, and the variance alpha/(beta^2).",
+                        type=float, default=1.0)
     parser.add_argument("--omegaCategoryProbs",
                         help="Probabilities of omega categories. They are supposed to sum up to one, but if they don't"
                              " they are normalized to do so. By default only 1 category is simulated.",
@@ -99,6 +103,9 @@ def setup_argument_parser():
     parser.add_argument("--noHierarchy",
                         help="Run without hierarchical algorithm; the latter is faster with more complex models.",
                         action="store_true")
+    parser.add_argument("--noNormalization",
+                        help="Run without normalizing the mutation rates - they are however still scaled by --scale.",
+                        action="store_true")
     parser.add_argument("--verbose", help="Turns on verbose mode.", action="store_true")
     parser.add_argument('--outputFile', default="sars-cov-2_simulation_output",
                         help='Output file name containing the simulated genomes in succint format. The file will be '
@@ -130,12 +137,14 @@ def setup_argument_parser():
     parser.add_argument("--insertionRate",
                         help="Distribution for the rates of insertions at each site. Possible values are: "
                              "CONSTANT x - all sites in the genome have a rate of x.\n"
-                             "GAMMA ins_shape ins_scale - rates drawn from a gamma(ins_shape, ins_scale) distribution",
+                             "GAMMA ins_alpha ins_beta - rates drawn from a gamma(ins_alpha, ins_beta) distribution,\n"
+                             "this distribution has mean ins_alpha/ins_beta",
                         type=str, nargs='+', default=None)
     parser.add_argument("--deletionRate",
                         help="Distribution for the rates of insertions at each site. Possible values are:\n "
                              "CONSTANT x - all sites in the genome have a rate of x.\n "
-                             "GAMMA del_shape del_scale - rates drawn from a gamma(del_shape, del_scale) distribution",
+                             "GAMMA del_alpha del_beta - rates drawn from a gamma(del_alpha, del_beta) distribution,"
+                             "this distribution has mean del_alpha/del_beta",
                         type=str, nargs='+', default=None)
     parser.add_argument("--insertionLength",
                         help="Genome-wide distributional parameters for insertion lengths at each site."
@@ -462,6 +471,7 @@ class phastSimRun:
             exit()
 
         omegaAlpha = self.args.omegaAlpha
+        omegaBeta = self.args.omegaBeta
         omegaCategoryProbs = self.args.omegaCategoryProbs
         omegaCategoryRates = self.args.omegaCategoryRates
         
@@ -473,12 +483,13 @@ class phastSimRun:
         print("Using a codon model")
 
         if omegaAlpha >= 0.000000001:
-            print("Using a continuous gamma distribution with parameter alpha=" + str(
-                omegaAlpha) + " for variation in omega across codons.")
+            print("Using a continuous gamma distribution with parameter alpha=" + str(omegaAlpha) + 
+                " and beta=" +str(omegaBeta)+ " for variation in omega across codons.")
 
-            omegas = iter(np.random.gamma(omegaAlpha, 1.0 / omegaAlpha, size=self.nCodons))
+            omegas = iter(np.random.gamma(omegaAlpha, 1.0 / omegaBeta, size=self.nCodons))
+
             if self.args.indels:
-                omegas = chain(omegas, (np.random.gamma(omegaAlpha, 1.0 / omegaAlpha) for _ in count()))
+                omegas = chain(omegas, (np.random.gamma(omegaAlpha, 1.0 / omegaBeta) for _ in count()))
         else:
             nCatOmega = len(omegaCategoryProbs)
             nRateOmega = len(omegaCategoryRates)
@@ -524,16 +535,16 @@ class phastSimRun:
                 generator = chain(generator, (parameter[0] for _ in count()))
             
             else:
-                if len(parameter) != 2:
-                    print("Gamma distribution requires 2 parameters, shape and scale. Exiting")
+                if len(parameter) != 2 or parameter[0] <= 0 or parameter[1] <= 0:
+                    print("Gamma distribution requires 2 parameters, alpha and beta (shape and rate). Exiting")
                     exit()
 
-                if np.product(parameter) > 0.25:
-                    print("Warning: indels are meant to be rare but the average per nucleotide indel rate is the product of parameters:")
-                    print("Product: " + str(np.product(parameter)))
+                if parameter[0]/parameter[1] > 0.25:
+                    print("Warning: indels are meant to be rare but the average per nucleotide indel rate is the ratio of parameters:")
+                    print("Ratio: " + str(parameter[0]/parameter[1]))
 
-                generator = iter(np.random.gamma(parameter[0], parameter[1], size=self.ref_len))
-                generator = chain(generator, (np.random.gamma(parameter[0], parameter[1]) for _ in count()))
+                generator = iter(np.random.gamma(parameter[0], 1./ parameter[1], size=self.ref_len))
+                generator = chain(generator, (np.random.gamma(parameter[0], 1./ parameter[1]) for _ in count()))
             
             return generator
 
@@ -614,6 +625,8 @@ class phastSimRun:
                 return (np.random.choice(range(1, M+1), p=probs) for _ in count())
 
             elif distribution == "DISCRETE":
+
+                parameters = [float(x) for x in parameters]
 
                 if len(parameters) < 1:
                     print("DISCRETE option requires parameters p_1 p_2, ...etc.")
@@ -725,7 +738,7 @@ class phastSimRun:
 
 class GenomeTree_hierarchical:
     def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, 
-                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose):
+                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose, noNorm):
 
         self.codon = codon
         self.ref = ref
@@ -754,6 +767,7 @@ class GenomeTree_hierarchical:
         self.deletionRate = deletionRate
         self.deletionLength = deletionLength
         self.scale = scale
+        self.noNorm = noNorm
 
         if not codon:
             self.nTerminalNodes = len(ref)
@@ -984,15 +998,21 @@ class GenomeTree_hierarchical:
 
     def normalize_rates(self):
 
-        norm = self.genomeRoot.rate / len(self.ref)
-        self.norm = norm
+        # When normalizing, branch lengths are in number of substitutions per nucleotide,
+        # even though we might be simulating a codon model.
+        if self.noNorm:
+            self.norm = 1.0/self.scale
+            print("\n Not normalizing mutation rates, as required by user. ")
 
-        print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
+        else:
+            # We rescale by the input normalization factor, this is the same as rescaling all
+            # the branch lengths by this rescaling factor
+            norm = self.genomeRoot.rate / (len(self.ref) * self.scale)
+            self.norm = norm
+            print("\n Total cumulative substitution rate per site before normalization: " + str(norm))
         
-        # We rescale by the input normalization factor, this is the same as rescaling all
-        # the branch lengths by this rescaling factor
-        self.norm /= self.scale
         self.normalizeRates(self.genomeRoot)
+
 
     def normalizeRates(self, rootNode):
         # This is an internal function implementation that can be reused elsewhere (e.g. when creating indel inserts).
