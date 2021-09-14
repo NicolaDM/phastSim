@@ -5,3 +5,5 @@ simulation_output_*/*
 .pytest_cache/*
 */__pycache__/*
 __pycache__/
+build/
+dist/
