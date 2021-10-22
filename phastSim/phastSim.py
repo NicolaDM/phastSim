@@ -2551,18 +2551,18 @@ def codon_lookup_table(translationList, codonIndices, codonIndices2):
 def writeGenomeNewick(node):
     # function to write a newick output iteratively
     if node.is_leaf():
-        outString = node.name + '['
+        outString = node.name + '[&mutations={'
     else:
         outString = '('
         for c in range(len(node.children)):
             outString += writeGenomeNewick(node.children[c])
             if c < len(node.children) - 1:
                 outString += ','
-        outString += ')['
+        outString += ')[&mutations={'
     stringToAdd = ''
     for i in range(len(node.mutAnnotation)):
         stringToAdd += node.mutAnnotation[i]
         if i < len(node.mutAnnotation) - 1:
             stringToAdd += ','
-    stringToAdd += (']:' + str(node.dist))
+    stringToAdd += ('}]:' + str(node.dist))
     return outString + stringToAdd

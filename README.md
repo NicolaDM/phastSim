@@ -31,19 +31,19 @@ git clone https://github.com/NicolaDM/phastSim
 
 ### Dependencies
 
-phastSim requires the Python packages [numpy](https://numpy.org/), [importlib_resources](https://importlib-resources.readthedocs.io/en/latest/), [ete3](http://etetoolkit.org/), and [biopython](https://biopython.org/). These packages are all available through both `PyPi`:
+phastSim requires the Python packages [numpy](https://numpy.org/), [importlib_resources](https://importlib-resources.readthedocs.io/en/latest/), [ete3](http://etetoolkit.org/), [biopython](https://biopython.org/), [protobuf](https://pypi.org/project/protobuf/), and [google](https://pypi.org/project/google/). These packages are all available through both `PyPi`:
 
 ```sh
-pip install numpy importlib-resources six ete3 biopython argparse
+pip install numpy importlib-resources six ete3 biopython protobuf google
 ```
 
 and `conda`:
 
 ```sh
-conda install -c defaults -c etetoolkit -c conda-forge numpy importlib_resources six ete3 biopython argparse
+conda install -c defaults -c etetoolkit -c conda-forge numpy importlib_resources six ete3 biopython protobuf google
 ```
 
-Versions used for testing were: python=3.9.1, numpy=1.19.2, importlib_resources=5.1.0, ete3=3.1.2, and biopython=1.78.
+Versions used for testing were: python=3.9.1, numpy=1.19.2, importlib_resources=5.1.0, ete3=3.1.2, biopython=1.78, protobuf=3.15.7 and google=3.0.0.
 
 
 ## Usage
