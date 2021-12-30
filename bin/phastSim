@@ -83,9 +83,16 @@ if sim_run.args.indels:
 # Loads a tree structure from a newick string in ETE3. The returned variable t is the root node for the tree.
 start = time.time()
 if args.mutationsTSVinput !=None:
+<<<<<<< HEAD
     t = Tree(args.treeFile,format=1)
 else:
     t = Tree(args.treeFile)
+=======
+	if args.eteFormat != 1:
+		print("WARNING: ete3 parsing format %s is inappropriate for use with mutationsTSVinput. Setting to parsing mode 1" % args.eteFormat)
+		args.eteFormat = 1
+t = Tree(args.treeFile,format=args.eteFormat)
+>>>>>>> 89017bff20a8b4a29fa055cb0ee4b4b1f3176513
 time1 = time.time() - start
 print("Time for reading tree with ETE3: " + str(time1))
     

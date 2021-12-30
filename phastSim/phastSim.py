@@ -168,6 +168,9 @@ def setup_argument_parser():
                         help='Name of (optional) file containing mutation events that are enforced on the tree.'
                         'Sites mutated this way become unmutable through the standard simulated mutation process.', 
                         default=None)
+    parser.add_argument('--eteFormat',
+                        help='Set an ete3 parsing mode with which to read the input tree newick.',
+                        type=int,default=0)
     return parser
 
 
