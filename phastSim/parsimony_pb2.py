@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='Parsimony',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x0fparsimony.proto\x12\tParsimony\"\x93\x01\n\x03mut\x12\x10\n\x08position\x18\x01 \x01(\x05\x12\x0f\n\x07ref_nuc\x18\x02 \x01(\x05\x12\x0f\n\x07par_nuc\x18\x03 \x03(\x05\x12\x0f\n\x07mut_nuc\x18\x04 \x03(\x05\x12\x12\n\nchromosome\x18\x05 \x01(\t\x12\x1a\n\x12insertion_position\x18\x06 \x01(\x05\x12\x17\n\x0finsertion_index\x18\x07 \x01(\x05\"1\n\rmutation_list\x12 \n\x08mutation\x18\x01 \x03(\x0b\x32\x0e.Parsimony.mut\"=\n\x0e\x63ondensed_node\x12\x11\n\tnode_name\x18\x01 \x01(\t\x12\x18\n\x10\x63ondensed_leaves\x18\x02 \x03(\t\"*\n\rnode_metadata\x12\x19\n\x11\x63lade_annotations\x18\x01 \x03(\t\"\xa8\x01\n\x04\x64\x61ta\x12\x0e\n\x06newick\x18\x01 \x01(\t\x12\x30\n\x0enode_mutations\x18\x02 \x03(\x0b\x32\x18.Parsimony.mutation_list\x12\x32\n\x0f\x63ondensed_nodes\x18\x03 \x03(\x0b\x32\x19.Parsimony.condensed_node\x12*\n\x08metadata\x18\x04 \x03(\x0b\x32\x18.Parsimony.node_metadatab\x06proto3')
+  serialized_pb=_b('\n\x0fparsimony.proto\x12\tParsimony\"\x93\x01\n\x03mut\x12\x10\n\x08position\x18\x01 \x01(\x05\x12\x0f\n\x07ref_nuc\x18\x02 \x01(\x05\x12\x0f\n\x07par_nuc\x18\x03 \x01(\x05\x12\x0f\n\x07mut_nuc\x18\x04 \x03(\x05\x12\x12\n\nchromosome\x18\x05 \x01(\t\x12\x1a\n\x12insertion_position\x18\x06 \x01(\x05\x12\x17\n\x0finsertion_index\x18\x07 \x01(\x05\"1\n\rmutation_list\x12 \n\x08mutation\x18\x01 \x03(\x0b\x32\x0e.Parsimony.mut\"=\n\x0e\x63ondensed_node\x12\x11\n\tnode_name\x18\x01 \x01(\t\x12\x18\n\x10\x63ondensed_leaves\x18\x02 \x03(\t\"*\n\rnode_metadata\x12\x19\n\x11\x63lade_annotations\x18\x01 \x03(\t\"\xa8\x01\n\x04\x64\x61ta\x12\x0e\n\x06newick\x18\x01 \x01(\t\x12\x30\n\x0enode_mutations\x18\x02 \x03(\x0b\x32\x18.Parsimony.mutation_list\x12\x32\n\x0f\x63ondensed_nodes\x18\x03 \x03(\x0b\x32\x19.Parsimony.condensed_node\x12*\n\x08metadata\x18\x04 \x03(\x0b\x32\x18.Parsimony.node_metadatab\x06proto3')
 )
 
 
@@ -48,8 +48,8 @@ _MUT = _descriptor.Descriptor(
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='par_nuc', full_name='Parsimony.mut.par_nuc', index=2,
-      number=3, type=5, cpp_type=1, label=3,
-      has_default_value=False, default_value=[],
+      number=3, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),

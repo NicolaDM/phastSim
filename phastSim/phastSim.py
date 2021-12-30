@@ -1959,6 +1959,7 @@ class GenomeTree_hierarchical:
 
 
     def write_genome_mat(self, tree, output_path, output_file):
+
         mat = protobuf.data()
         mat.newick = tree.write(format=1)
 
@@ -1975,7 +1976,7 @@ class GenomeTree_hierarchical:
         for m in node.mutations:
             m_pb = mutations_protobuf.mutation.add()
             m_pb.position = m.genomePos
-            
+
             if getattr(m, "insertionPos", 0):
                 m_pb.insertion_position = m.insertionPos
                 m_pb.ref_nuc = -1
@@ -1985,12 +1986,11 @@ class GenomeTree_hierarchical:
             if m.mType == mType.INS:
                 m_pb.insertion_index = m.index
 
-
-            for ch in m.source:
-                if ch == "-":
-                    m_pb.par_nuc.append(-1)
-                else:
-                    m_pb.par_nuc.append(self.alleles[ch])
+            ch = m.source[0]
+            if ch == "-":
+                m_pb.par_nuc = -1
+            else:
+                m_pb.par_nuc = self.alleles[ch]
 
             for ch in m.target:
                 if ch == "-":

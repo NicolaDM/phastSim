@@ -15,22 +15,59 @@ source $HOME/.bashrc
 OUTPATH="/nfs/research/goldman/will/sim_output/"
 INDELIBLE_PATH="/hps/software/users/goldman/will/INDELIBLEV1.03/bin/indelible"
 SEQ_GEN_PATH="/hps/software/users/goldman/will/Seq-Gen-1.3.4/source/seq-gen"
-REF_PATH=""
+REF_PATH="/home/will/Desktop/projects/embl/phastSim/phastSim/example/MN908947.3.fasta"
 
 
 # Rest of script - no need to edit below here
-TIMES="100 1000 10000 100000 1000000"
+TIMES="10 100 1000 20000"
 CURRENT_FOLDER=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 for t in $TIMES; do
+    if [ $t -gt 101 ]
+    then
+        indelibleOptions=""
+    else
+        indelibleOptions="--indelibleSim --indelibleSim2"
+    fi    
     if [ $t -gt 1001 ]
     then
         seqgenOptions=""
     else
         seqgenOptions="--seqgenSim"
-    fi         
-    echo experiment $t $seqgenOptions
-    python $CURRENT_FOLDER/compareSimulators.py --nLeaves $t $seqgenOptions --phastSim --noHierarchy  --seed 124 --replicates 10 \
-        --seqgenPath $SEQ_GEN_PATH \
+    fi
+
+    # nucleotide model
+    python $CURRENT_FOLDER/compareSimulators.py --nLeaves $t $seqgenOptions $indelibleOptions --phastSim  --seed 127 --replicates 10 \
+        --seqgenPath $SEQ_GEN_PATH --indeliblePath $INDELIBLE_PATH \
+        --reference $REF_PATH --path $OUTPATH --monitorMemory
+
+    # nucleotide model + 10 cat
+    python $CURRENT_FOLDER/compareSimulators.py --nLeaves $t $seqgenOptions $indelibleOptions --phastSim  --seed 127 --replicates 10 \
+        --seqgenPath $SEQ_GEN_PATH --indeliblePath $INDELIBLE_PATH \
+        --categoryRates 1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 \
+        --categoryProbs 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 \
+        --reference $REF_PATH --path $OUTPATH --monitorMemory
+
+    # nucleotide model + alpha
+    python $CURRENT_FOLDER/compareSimulators.py --nLeaves $t $seqgenOptions $indelibleOptions --phastSim  --seed 127 --replicates 10 \
+        --seqgenPath $SEQ_GEN_PATH --indeliblePath $INDELIBLE_PATH \
+        --alpha 1.0 \
+        --reference $REF_PATH --path $OUTPATH --monitorMemory
+
+    # codon model
+    python $CURRENT_FOLDER/compareSimulators.py --nLeaves $t $indelibleOptions --phastSim  --seed 127 --replicates 10 \
+        --indeliblePath $INDELIBLE_PATH --codon \
+        --reference $REF_PATH --path $OUTPATH --monitorMemory
+
+    # codon model + 10 cat
+    python $CURRENT_FOLDER/compareSimulators.py --nLeaves $t $indelibleOptions --phastSim  --seed 127 --replicates 10 \
+        --indeliblePath $INDELIBLE_PATH --codon \
+        --omegaCategoryRates 1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 \
+        --omegaCategoryProbs 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 \
+        --reference $REF_PATH --path $OUTPATH --monitorMemory
+
+    # codon model + alpha
+    python $CURRENT_FOLDER/compareSimulators.py --nLeaves $t --phastSim  --seed 127 --replicates 10 \
+        --codon --alpha 1.0 --omegaAlpha 1.0 \
         --reference $REF_PATH --path $OUTPATH --monitorMemory
 done

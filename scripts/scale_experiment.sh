@@ -19,18 +19,29 @@ REF_PATH=""
 
 
 # Rest of script - no need to edit below here
-TIMES="100 1000 10000 100000 1000000"
+TIMES="1000 5000 100000"
+SCALES="0.1 1 10"
 CURRENT_FOLDER=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 for t in $TIMES; do
-    if [ $t -gt 1001 ]
-    then
-        seqgenOptions=""
-    else
-        seqgenOptions="--seqgenSim"
-    fi         
-    echo experiment $t $seqgenOptions
-    python $CURRENT_FOLDER/compareSimulators.py --nLeaves $t $seqgenOptions --phastSim --noHierarchy  --seed 124 --replicates 10 \
-        --seqgenPath $SEQ_GEN_PATH \
-        --reference $REF_PATH --path $OUTPATH --monitorMemory
+    for s in $SCALES; do
+        if [ $t -gt 5001 ]
+        then
+            seqgenOptions=""
+        else
+            seqgenOptions="--seqgenSim"
+        fi
+
+        if [ $t -gt 1001 ]
+        then
+            indelibleOptions=""
+        else
+            indelibleOptions="--indelibleSim --indelibleSim2"
+        fi     
+
+        python $CURRENT_FOLDER/compareSimulators.py --nLeaves $t $seqgenOptions $indelibleOptions \
+            --phastSim --seed 126 --replicates 10 --scale $s --noHierarchy \
+            --seqgenPath $SEQ_GEN_PATH --indeliblePath $INDELIBLE_PATH \
+            --reference $REF_PATH --path $OUTPATH --monitorMemory
+    done
 done
