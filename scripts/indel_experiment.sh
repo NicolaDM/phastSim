@@ -15,7 +15,7 @@ source $HOME/.bashrc
 OUTPATH="/nfs/research/goldman/will/sim_output/"
 INDELIBLE_PATH="/hps/software/users/goldman/will/INDELIBLEV1.03/bin/indelible"
 SEQ_GEN_PATH="/hps/software/users/goldman/will/Seq-Gen-1.3.4/source/seq-gen"
-REF_PATH=""
+REF_PATH="/hps/software/users/goldman/will/phastSim/phastSim/example/MN908947.3.fasta"
 
 
 # Rest of script - no need to edit below here

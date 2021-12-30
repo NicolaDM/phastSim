@@ -317,8 +317,8 @@ for r in range(nReplicates):
     if pyvolveSim:
         print("Running pyvolve")
         start = time.time()
-                
-        stringRun="python "+ pyvolvePath + " --path "+ str(args.path) +"  --seed "+str(seed+r)+" --scale "+str(scale)+" --treeFile "+treeFile2+" --outputFile simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_pyvolve.txt"
+
+        stringRun="python "+ pyvolvePath + " --path "+ str(args.path) +" --reference " + reference + "  --seed "+str(seed+r)+" --scale "+str(scale)+" --treeFile "+treeFile2+" --outputFile simulationOutput_repl"+str(r+1)+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_pyvolve.txt"
 
         if alpha>=0.000000001 or invariable>=0.000000001:
             print("I am not allowing continuous rate variation in pyvolve!")

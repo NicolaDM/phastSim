@@ -41,13 +41,13 @@ outputFile=args.outputFile
 #collect reference
 ref=""
 if reference!="":
-    file=open(pathSimu+reference)
+    file=open(reference)
     line=file.readline()
     while line!="":
         line=file.readline()
         ref+=line.replace("\n","")
     file.close()
-    print("\n Finished reading reference genome at "+pathSimu+reference+" with "+str(len(ref))+" bases.")
+    print("\n Finished reading reference genome at "+reference+" with "+str(len(ref))+" bases.")
     refList=list(ref)
 else:
     print("random ancestor not implemente yet!")
