@@ -110,7 +110,9 @@ Other scripts (in the "scripts" subdirectory) which are not required to run `pha
 
 - **random_tree.py**, which efficiently generates a random birth-death tree with many tips, and
 
-- **compareSimulators.py**, which is used to compare the running time of phastSim with other simulators (Seq-Gen, INDELible and pyvolve).
+- **compareSimulators.py**, which is used to compare the running time of phastSim with other simulators (Seq-Gen, INDELible and pyvolve, you will need to install these yourself and provide some command line arguments telling the script where these are installed).
+
+- **some_experiment.sh**, a few bash scripts which automate the experiments used to produce the figures in the paper. 
 
 
 ## Tests

@@ -121,10 +121,10 @@ def label_tree(leaves, model, seed=None):
         # number of padding zeros needed
     pattern = "L%%0%ii" % (1 + math.floor(math.log10(len(leaves))))
 
-	# Label all leaves first
+    # Label all leaves first
     for leaf_idx, leaf_node in enumerate(leaves):
-    	leaf_node.name = pattern % (leaf_idx + 1)
-    	
+        leaf_node.name = pattern % (leaf_idx + 1)
+        
 def delete_single_child_internal(t):
     """Utility function that removes internal nodes
     with a single child from tree"""
@@ -199,9 +199,9 @@ def __gen_tree(**kwargs):
         # would take place *after* our maximum time, in the future).
         total_time += event_time
         if kwargs["max_time"] and total_time > kwargs["max_time"]:
-        	for node in leaves:
-        		node.dist=kwargs["max_time"]-node.dist
-        	break
+            for node in leaves:
+                node.dist=kwargs["max_time"]-node.dist
+            break
 
         # Select a random node among the extant ones and set it as extinct
         # before simulating either a birth or death event; the type of
@@ -233,8 +233,8 @@ def __gen_tree(**kwargs):
                 node.add_child(child_node)
                 leaves.append(child_node)
         else:
-        	del leaves[leafN]
-        	
+            del leaves[leafN]
+            
 
         # (Re)Extract the list of extant nodes, now that we might have new
         # children and that the randomly selected node went extinct
@@ -273,9 +273,9 @@ def __gen_tree(**kwargs):
 
         # Check whether the number of leaves stopping criterium was reached
         if kwargs["min_leaves"] and len(leaves) >= kwargs["min_leaves"]:
-        	for node in leaves:
-        		node.dist=total_time-node.dist
-        	break
+            for node in leaves:
+                node.dist=total_time-node.dist
+            break
 
         #if kwargs["max_time"] and total_time >= kwargs["max_time"]:
         #    break

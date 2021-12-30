@@ -231,7 +231,7 @@ class phastSimRun:
         return ref, refList
 
 
-	#Create root genome randomly
+    #Create root genome randomly
     def create_rootGenome_codon(self):
 
         rootGenomeFrequencies = self.init_insertion_frequencies()
@@ -251,7 +251,7 @@ class phastSimRun:
                     codonAllelesList.append(allelesList[i1] + allelesList[i2] + allelesList[i3])
         codList = np.random.choice(codonAllelesList, size=int(rootGenomeLength / 3), replace=True,
                                 p=rootGenomeFrequencies)
-	
+
         ref = "".join(codList)
         refList = list(ref)
         #refList = np.array(refList)
@@ -849,7 +849,7 @@ class GenomeTree_hierarchical:
                 if node.allele in self.stopCodons:
                     node.omega = 0.0
                     if (pos < self.nTerminalNodes - 1):
-                    	print(f"Warning: stop codon in the middle of the reference {pos * 3 + 1}"
+                        print(f"Warning: stop codon in the middle of the reference {pos * 3 + 1}"
                           f" {ref[pos * 3:(pos + 1) * 3]}."
                           f"Continuing simulations but setting omega=0 for this position.")
 
@@ -877,7 +877,7 @@ class GenomeTree_hierarchical:
                     node.hyperCategories[i2] = next(self.hyperCategories)
                     node.gammaRates[i2] = next(self.gammaRates)
                     if self.infoFile!=None:
-                    	self.infoFile.write(str(node.gammaRates[i2]) + "\t" + str(node.hyperCategories[i2]) + "\t")
+                        self.infoFile.write(str(node.gammaRates[i2]) + "\t" + str(node.hyperCategories[i2]) + "\t")
                     nuc1 = indices[i2]
                     for i3 in range3:
                         nuc2 = (nuc1 + i3 + 1) % 4
@@ -898,10 +898,10 @@ class GenomeTree_hierarchical:
                         if i == nuc1:
                             node.rates[node.allele][i2 * 3 + j] *= self.hyperMutRates[node.hyperCategories[i2] - 1]
                         if self.infoFile!=None:
-                        	self.infoFile.write(self.allelesList[i] + "\t" + self.allelesList[(i + j + 1) % 4] + "\t")
+                            self.infoFile.write(self.allelesList[i] + "\t" + self.allelesList[(i + j + 1) % 4] + "\t")
                     else:
                         if self.infoFile!=None:
-                        	self.infoFile.write(".\t" + ".\t")
+                            self.infoFile.write(".\t" + ".\t")
                     for i3 in range3:
                         node.rate += node.rates[node.allele][i2 * 3 + i3]
                     node.rates[node.allele][9] = node.rate
@@ -915,6 +915,7 @@ class GenomeTree_hierarchical:
                 # evolutionary categories
                 node.gammaRate = next(self.gammaRates)
                 nodeHyper = next(self.hyperCategories)
+                node.hyperCategories = nodeHyper
                 if self.infoFile!=None:
                     if self.indels:
                         self.infoFile.write(str(node.insertionPos) + "\t")
@@ -1966,7 +1967,7 @@ class GenomeTree_hierarchical:
         f = open(output_path + output_file + ".mat.pb", "wb")
         f.write(mat.SerializeToString())
         f.close()
-        
+
     def writeGenomeMAT(self, node, mat):
 
         _ = mat.metadata.add()
@@ -1977,22 +1978,26 @@ class GenomeTree_hierarchical:
             
             if getattr(m, "insertionPos", 0):
                 m_pb.insertion_position = m.insertionPos
-            
+                m_pb.ref_nuc = -1
+            else:
+                m_pb.ref_nuc = self.alleles[self.ref[m.genomePos]]
+
             if m.mType == mType.INS:
                 m_pb.insertion_index = m.index
 
+
             for ch in m.source:
                 if ch == "-":
-                    m_pb.ref_nuc.append(-1)
+                    m_pb.par_nuc.append(-1)
                 else:
-                    m_pb.ref_nuc.append(self.alleles[ch])
+                    m_pb.par_nuc.append(self.alleles[ch])
 
             for ch in m.target:
                 if ch == "-":
                     m_pb.mut_nuc.append(-1)
                 else:
                     m_pb.mut_nuc.append(self.alleles[ch])
-            
+
         for c in node.children:
             self.writeGenomeMAT(c, mat)
 
@@ -2043,7 +2048,7 @@ class GenomeTree_vanilla:
             cat = self.categories[pos]
             hyp = self.hyperCategories[pos]
             if self.infoFile!=None:
-            	self.infoFile.write(str(pos + 1) + "\t" + str(cat) + "\t" + str(hyp) + "\t")
+                self.infoFile.write(str(pos + 1) + "\t" + str(cat) + "\t" + str(hyp) + "\t")
             # now sample which alleles are affected by hypermutation and store info in positions and extra vectors
             if hyp > 0:
                 i = np.random.choice(4)
@@ -2055,24 +2060,24 @@ class GenomeTree_vanilla:
                                    pos, len(positions[cat][a]) - 1, cat, hyp, i, j])
                     totMut += self.mutMatrix[a][j] * self.categoryRates[cat] * (self.hyperMutRates[hyp - 1] - 1.0)
                 if self.infoFile!=None:
-                	self.infoFile.write(self.allelesList[i] + "\t" + self.allelesList[j] + "\n")
+                    self.infoFile.write(self.allelesList[i] + "\t" + self.allelesList[j] + "\n")
             else:
                 positions[cat][a].append([pos, 0])
                 if self.infoFile!=None:
-                	self.infoFile.write(".\t" + ".\n")
+                    self.infoFile.write(".\t" + ".\n")
             #for j in self.range4:
             #    if j != a:
             #        totMutMatrix[cat][a][j] += self.mutMatrix[a][j] * self.categoryRates[cat]
             #        totMut += self.mutMatrix[a][j] * self.categoryRates[cat]
             totAlleles[self.categories[pos]][a] += 1
         for c in range(self.nCat):
-        	for a in self.range4:
-        		for j in self.range4:
-        			if j != a:
-        				totMut += self.mutMatrix[a][j] * self.categoryRates[c]*totAlleles[c][a]
-        				totMutMatrix[cat][a][j]+= self.mutMatrix[a][j] * self.categoryRates[c]*totAlleles[c][a]
+            for a in self.range4:
+                for j in self.range4:
+                    if j != a:
+                        totMut += self.mutMatrix[a][j] * self.categoryRates[c]*totAlleles[c][a]
+                        totMutMatrix[cat][a][j]+= self.mutMatrix[a][j] * self.categoryRates[c]*totAlleles[c][a]
         if self.infoFile!=None:
-        	self.infoFile.close()
+            self.infoFile.close()
 
         print("\n Number of each nucleotide in the genome:")
         print(totAlleles)
