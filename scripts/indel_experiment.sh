@@ -5,7 +5,7 @@
 #BSUB -e /nfs/research/goldman/will/%J.err   # error file name in which %J is replaced by the job ID
 #BSUB -o /nfs/research/goldman/will/%J.out  # output file name in which %J is replaced by the job ID
 #BSUB -J will-phastSim-indel-expt
-#BSUB -M 2000
+#BSUB -M 4096
 
 # Some preamble to run this script on the cluster, comment out these 2 lines if you are running on a laptop
 export HOME="/nfs/research/goldman/will"
