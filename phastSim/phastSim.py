@@ -1586,7 +1586,6 @@ class GenomeTree_hierarchical:
 
         def wrappedFunction(self, node, file, mutDict, insertionDict, **kwargs):
 
-
             # flatten the mutDict + node.mutations into a more concise format, and save indels in insertionDict
             for m in node.mutations:
 
@@ -1869,12 +1868,12 @@ class GenomeTree_hierarchical:
 
             for k, m in mutDict.items():
 
-                # this deals with insertions and substitutions
+                # this deals with insertions and substitutions, and deletions of length 1
                 if len(m[0]) == 1:
                     self.refList[k] = m[1].replace("-", "")
                 
                 else:
-                    # deletions
+                    # deletions of length > 1
                     for i, character in enumerate(m[0]):
                         self.refList[k + i] = ""
 
@@ -1883,12 +1882,12 @@ class GenomeTree_hierarchical:
             # de-update self.refList
             for k, m in mutDict.items():
 
-                # this deals with insertions and substitutions
+                # this deals with insertions and substitutions, and deletions of length 1
                 if len(m[0]) == 1:
                     self.refList[k] = m[0]
                 
                 else:
-                    # deletions
+                    # deletions of length > 1
                     for i, character in enumerate(m[0]):
                         self.refList[k + i] = m[0][i]            
 
@@ -1978,7 +1977,7 @@ class GenomeTree_hierarchical:
         mutations_protobuf = mat.node_mutations.add()
         for m in node.mutations:
             m_pb = mutations_protobuf.mutation.add()
-            m_pb.position = m.genomePos
+            m_pb.position = m.genomePos + 1
 
             if getattr(m, "insertionPos", 0):
                 m_pb.insertion_position = m.insertionPos
@@ -2485,7 +2484,7 @@ class mutation:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-        
+
 
     def __str__(self):
 
