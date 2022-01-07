@@ -1871,7 +1871,7 @@ class GenomeTree_hierarchical:
 
                 # this deals with insertions and substitutions
                 if len(m[0]) == 1:
-                    self.refList[k] = m[1]
+                    self.refList[k] = m[1].replace("-", "")
                 
                 else:
                     # deletions

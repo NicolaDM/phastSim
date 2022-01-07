@@ -4,6 +4,104 @@ import numpy as np
 
 pathSimu = "/home/will/Desktop/projects/embl/phastSim/simulation_output_8/"
 
+#BOXPlot drawing
+def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel,topPlot,bottom=0.0001,degreeSkew=45):
+
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+    fig.canvas.set_window_title('Simulation Running times')
+    fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
+    #num_boxes = len(valuesLists)*len(valuesLists[0])
+    
+    data=np.zeros((len(valuesLists)*len(valuesLists[0]),len(valuesLists[0][0])))
+    print((len(valuesLists)*len(valuesLists[0]),len(valuesLists[0][0])))
+    positions=[]
+    for i in range(len(valuesLists)):
+        for j in range(len(valuesLists[i])):
+            c=colors[j]
+            positions.append(i+(j-len(valuesLists[i])/2.0)*0.5/len(valuesLists[i]))
+            for k in range(len(valuesLists[i][j])):
+                #print("")
+                #print(valuesLists[i][j][k])
+                #print(data[i*len(valuesLists[0])+j][k])
+                data[i*len(valuesLists[0])+j][k]=valuesLists[i][j][k]
+            position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
+            #if len(valuesLists[i])%2==0:
+            #   position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
+            #else:
+            #   position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
+            plt.boxplot(data[i*len(valuesLists[0])+j], positions=position, notch=False, patch_artist=True, widths=0.5/len(colors), manage_ticks=False, 
+                boxprops=dict(facecolor=c, color=c),
+                capprops=dict(color=c),
+                whiskerprops=dict(color=c),
+                medianprops=dict(color=c),
+                flierprops = dict(marker='o', markerfacecolor=c, markersize=1.5,
+                    linestyle='none', markeredgecolor=c)
+            )
+    
+    # Add a horizontal grid to the plot, but make it very light in color
+    # so we can use it for reading data values but not be distracting
+    ax1.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',   alpha=0.5)
+
+    # Hide these grid behind plot objects
+    ax1.set_axisbelow(True)
+    ax1.set_title('Comparison of Simulation Running times')
+    ax1.set_xlabel(xLabel)
+    ax1.set_ylabel('Time (seconds)')
+    ax1.set_yscale('log')
+
+    # Set the axes ranges and axes labels
+    ax1.set_xlim(-0.7, len(valuesLists) -0.5)
+    top = topPlot
+    ax1.set_ylim(bottom, top)
+    #ax1.set_xticklabels(labels, rotation=45, fontsize=8)
+    ax1.set_xticks(np.arange(len(valuesLists)))
+    ax1.set_xticklabels(labels, rotation=degreeSkew, fontsize=11)
+
+    # Finally, add a basic legend
+    for i in range(len(colors)):
+        fig.text(0.10, 0.85-0.045*i, axisLabels[i], backgroundcolor=colors[i], color='black', weight='roman', size='medium')
+    
+    fig.savefig(plotFileName)
+    plt.close()
+
+def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,bottom=0.0001, degreeSkew=45):
+    
+    mean_times = []
+    errors = []
+    for t1 in times:
+        mean_times.append([])
+        errors.append([])
+        for t2 in t1:
+            mean_times[-1].append(np.mean([float(t) for t in t2]))
+            errors[-1].append(np.std([float(t) for t in t2]))
+
+    mean_times = np.array(mean_times).T
+    errors = np.array(errors).T    
+    
+
+    x = n_leaves
+    y = range(100,200)
+    fig = plt.figure(figsize=(15, 9))
+    ax1 = fig.add_subplot(111)
+    # Hide these grid behind plot objects
+    ax1.set_axisbelow(True)
+    ax1.set_title('Comparison of Simulation Running Times')
+    ax1.set_xlabel(topPlot)
+    ax1.set_ylabel('Time (seconds)')
+    ax1.set_xscale('log')
+    ax1.set_yscale('log')
+    ax1.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',   alpha=0.5)
+    #ax1.errorbar(x, mean_times[0], yerr=errors[0], marker='x', c='blue', label='tree generation', fmt="o", capsize=2)
+    
+    reordered_numbers = [0, 1, 2, 4, 6, 5, 3]
+    for i in range(len(labels)):
+        ax1.errorbar(x, mean_times[i, :], yerr=errors[i, :], marker='x', c=colors[i], label=labels[i], capsize=2)
+    
+    plt.legend(loc='upper left')
+    #plt.show()
+    fig.savefig(plotFileName)
+
+
 names=["tree generation","phastSim","phastSim+Fasta","pyvolve","SeqGen","INDELible-m1","INDELible-m2"]
 colors=["blue","red","orange","green","purple","yellow","brown"]
 # the commented out values were used previously (on Nicola's PC).
@@ -46,108 +144,6 @@ nLeaves=["10","20","50","100","200","500","1000","2000","5000","10^4","2x10^4","
 times=[times10,times20,times50,times100,times200,times500,times1000,times2000,times5000,times10000,times20000,times50000,times100000,times200000,times500000]
 
 
-#BOXPlot drawing
-def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel,topPlot,degreeSkew=45):
-
-    fig, ax1 = plt.subplots(figsize=(10, 6))
-    fig.canvas.set_window_title('Simulation Running times')
-    fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
-    #num_boxes = len(valuesLists)*len(valuesLists[0])
-    
-    data=np.zeros((len(valuesLists)*len(valuesLists[0]),len(valuesLists[0][0])))
-    print((len(valuesLists)*len(valuesLists[0]),len(valuesLists[0][0])))
-    positions=[]
-    for i in range(len(valuesLists)):
-        for j in range(len(valuesLists[i])):
-            c=colors[j]
-            positions.append(i+(j-len(valuesLists[i])/2.0)*0.5/len(valuesLists[i]))
-            for k in range(len(valuesLists[i][j])):
-                #print("")
-                #print(valuesLists[i][j][k])
-                #print(data[i*len(valuesLists[0])+j][k])
-                data[i*len(valuesLists[0])+j][k]=valuesLists[i][j][k]
-            position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
-            #if len(valuesLists[i])%2==0:
-            #   position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
-            #else:
-            #   position=[i+(j-(len(valuesLists[i])-1)/2.0)*0.5/len(valuesLists[i])]
-            plt.boxplot(data[i*len(valuesLists[0])+j], positions=position, notch=False, patch_artist=True, widths=0.5/len(colors), manage_ticks=False, 
-                boxprops=dict(facecolor=c, color=c),
-                capprops=dict(color=c),
-                whiskerprops=dict(color=c),
-                medianprops=dict(color=c),
-                flierprops = dict(marker='o', markerfacecolor=c, markersize=1.5,
-                    linestyle='none', markeredgecolor=c)
-            )
-    
-    # Add a horizontal grid to the plot, but make it very light in color
-    # so we can use it for reading data values but not be distracting
-    ax1.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',   alpha=0.5)
-
-    # Hide these grid behind plot objects
-    ax1.set_axisbelow(True)
-    ax1.set_title('Comparison of Simulation Running times')
-    ax1.set_xlabel(xLabel)
-    ax1.set_ylabel('Time (seconds)')
-
-    # Set the axes ranges and axes labels
-    ax1.set_xlim(-0.7, len(valuesLists) -0.5)
-    top = topPlot
-    bottom = -1
-    ax1.set_ylim(bottom, top)
-    #ax1.set_xticklabels(labels, rotation=45, fontsize=8)
-    ax1.set_xticks(np.arange(len(valuesLists)))
-    ax1.set_xticklabels(labels, rotation=degreeSkew, fontsize=11)
-
-    # Finally, add a basic legend
-    for i in range(len(colors)):
-        fig.text(0.10, 0.85-0.045*i, axisLabels[i], backgroundcolor=colors[i], color='black', weight='roman', size='medium')
-    
-    fig.savefig(plotFileName)
-    plt.close()
-
-def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,degreeSkew=45):
-    
-    mean_times = []
-    errors = []
-    for t1 in times:
-        mean_times.append([])
-        errors.append([])
-        for t2 in t1:
-            mean_times[-1].append(np.mean([float(t) for t in t2]))
-            errors[-1].append(np.std([float(t) for t in t2]))
-
-    mean_times = np.array(mean_times).T
-    errors = np.array(errors).T    
-    
-
-    x = n_leaves
-    y = range(100,200)
-    fig = plt.figure(figsize=(15, 9))
-    ax1 = fig.add_subplot(111)
-    # Hide these grid behind plot objects
-    ax1.set_axisbelow(True)
-    ax1.set_title('Comparison of Simulation Running Times')
-    ax1.set_xlabel(topPlot)
-    ax1.set_ylabel('Time (seconds)')
-    ax1.set_xscale('log')
-    #ax1.set_yscale('log')
-    ax1.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',   alpha=0.5)
-    #ax1.errorbar(x, mean_times[0], yerr=errors[0], marker='x', c='blue', label='tree generation', fmt="o", capsize=2)
-    
-    reordered_numbers = [0, 1, 2, 4, 6, 5, 3]
-    for i in range(len(labels)):
-        ax1.errorbar(x, mean_times[i, :], yerr=errors[i, :], marker='x', c=colors[i], label=labels[i], capsize=2)
-    
-    #ax1.errorbar(x, mean_times[1], yerr=errors[1], marker='x', c='red', label='phastSim', capsize=2)
-    #ax1.errorbar(x, mean_times[2], yerr=errors[2], marker='x', c='orange', label='phastSim+fasta', capsize=2)
-    #ax1.errorbar(x, mean_times[4], yerr=errors[4], marker='x', c='purple', label='Seq-Gen', capsize=2)
-    #ax1.errorbar(x, mean_times[6], yerr=errors[6], marker='x', c='brown', label='INDELible-m2', capsize=2)
-    #ax1.errorbar(x, mean_times[5], yerr=errors[5], marker='x', c='yellow', label='INDELible-m1', capsize=2)
-    #ax1.errorbar(x, mean_times[3], yerr=errors[3], marker='x', c='green', label='pyvolve', capsize=2)
-    plt.legend(loc='upper left')
-    #plt.show()
-    fig.savefig(plotFileName)
 
 #generate boxplot of general running times
 boxplot(times,names,pathSimu+"boxplot_times_general.pdf",nLeaves,colors,'Number of tips',70)
