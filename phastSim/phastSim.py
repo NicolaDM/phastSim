@@ -237,7 +237,7 @@ class phastSimRun:
     #Create root genome randomly
     def create_rootGenome_codon(self):
 
-        rootGenomeFrequencies = self.init_insertion_frequencies()
+        rootGenomeFrequencies = self.init_insertion_frequencies(None)
         rootGenomeLength = self.args.rootGenomeLength
 
 
@@ -263,7 +263,7 @@ class phastSimRun:
 
     def create_rootGenome_nuc(self):
 
-        rootGenomeFrequencies = self.init_insertion_frequencies()
+        rootGenomeFrequencies = self.init_insertion_frequencies(None)
         rootGenomeLength = self.args.rootGenomeLength
 
         
@@ -1621,7 +1621,7 @@ class GenomeTree_hierarchical:
                         mutDict[refPos] = [mutDict[refPos][0], 
                                         target[:offset+1] + m.target + target[offset+1:],
                                         indices[:offset+1] + [(m.index, i) for i in range(len(m.target))] + indices[offset+1:]]
-                    
+
                     else:
                         # deal with an edge case where we are at the -1 genome position i.e. right at the start of the genome
                         first_symbol = (self.ref[refPos] if refPos != -1 else "")
@@ -1635,8 +1635,15 @@ class GenomeTree_hierarchical:
                     # need to deal with the deletion one symbol at a time
                     deletedChars = 0
                     m.deletedPositions = []
+                    
+                    startedInMiddleOfDictionaryItem = False
+                    if offset > 0:
+                        startedInMiddleOfDictionaryItem = True
 
+                    # are we appending "-" characters to the end of an existing dictionary item or not?
                     appending = False
+
+                    # dictPos - the dictionary key in mutDict that we are reading from / writing to
                     dictPos = refPos
 
                     while (deletedChars < len(m.source)):
@@ -1650,10 +1657,10 @@ class GenomeTree_hierarchical:
                                 appending = False
                                 
                                 # delete a character if it is non-blank
-                                if mutDict[refPos][1][offset] != "-":
-                                    mutDict[refPos][1] = mutDict[refPos][1][:offset] + "-" + mutDict[refPos][1][offset+1:]
+                                if mutDict[dictPos][1][offset] != "-":
+                                    mutDict[dictPos][1] = mutDict[dictPos][1][:offset] + "-" + mutDict[dictPos][1][offset+1:]
                                     deletedChars += 1
-                                    m.deletedPositions.append(mutDict[refPos][2][offset])
+                                    m.deletedPositions.append(mutDict[dictPos][2][offset])
                             
                             # otherwise we can continue appending to the deletion 
                             else:
@@ -1664,7 +1671,7 @@ class GenomeTree_hierarchical:
                                 deletedChars += 1
                                 m.deletedPositions.append((0, refPos))
                         
-                        # in this case we are working on an existing deletion, or have just finished doing so
+                        # in this case we are working on an existing dictionary item, or have just finished doing so
                         else:
                             
                             # a position not ever seen before, we must add it to the dictionary and 
@@ -1686,13 +1693,17 @@ class GenomeTree_hierarchical:
                         
                         # now move to the next character
                         # increment the reference position if we pass it
-                        if mutDict[dictPos][2][offset] == (0, refPos):
+                        if (mutDict[dictPos][2][offset] == (0, refPos)):
                             refPos += 1  
                             
                         # we will change to a new dictionary item if we are not in append mode or are not going to be
                         offset += 1
                         if offset == len(mutDict[dictPos][2]):
-                            if not appending or (refPos in mutDict):
+                            if (not appending) or (refPos in mutDict):
+                                
+                                if startedInMiddleOfDictionaryItem:
+                                    refPos += 1
+                                    startedInMiddleOfDictionaryItem = False
                                 appending = False
                                 dictPos = refPos
                                 offset = 0
