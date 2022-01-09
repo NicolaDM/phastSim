@@ -271,7 +271,7 @@ class WriterTest:
                             deletedChars += 1
 
                         # move to next symbol
-                        if mutDict[refPos][2][offset] == (0, refPos + counter) or offset == len(mutDict[refPos][1]):
+                        if mutDict[refPos][2][offset] == (0, refPos + counter):
                             counter += 1
                         offset += 1
                         if offset == len(mutDict[refPos][1]):
@@ -392,5 +392,17 @@ def test_multiple_deletions_together():
     },
     {23: 1406},
     [mutation(mType=mType.DEL, genomePos=1399, insertionPos=0, source="AAAAAAAAAAAAAA", target="")])
+
+    apply_general_test(testCase)
+
+def test_multiple_deletions_together_slightly_different():
+
+    testCase = ({
+        1406: ['A', '-CTG', [(0, 1406), (23, 0), (23, 1), (23, 2)]], 
+        1401: ['AAAA', '----', [(0, 1401), (0, 1402), (0, 1403), (0, 1404)]],
+        1408: ['AAA', '---', [(0, 1408), (0, 1409), (0, 1410)]]
+    },
+    {23: 1406},
+    [mutation(mType=mType.DEL, genomePos=1399, insertionPos=0, source="AAACTGAAAAAAAA", target="")])
 
     apply_general_test(testCase)
