@@ -5,7 +5,6 @@ from ete3 import Tree
 import time
 import phastSim.phastSim as phastSim
 
-
 """
 Script that simulates sequence evolution along a given input phylogeny.
 The algorithm (based on Gillespie approach) is fast for trees with short branches,

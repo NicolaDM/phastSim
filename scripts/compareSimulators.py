@@ -1,12 +1,14 @@
 #import sys
 import os
 import subprocess
-#import math
+import math
+import random
+import hashlib
 import numpy as np
 import os.path
 #from os import path
 import argparse
-#from ete3 import Tree
+from ete3 import Tree
 import time
 
 #script to compare the running time of phastSim with pyvolve, seq-gen and indelible.

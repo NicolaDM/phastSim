@@ -13,7 +13,7 @@ source $HOME/.bashrc
 
 # YOU NEED TO SET THESE VARIABLES FOR YOUR OWN SETUP!
 OUTPATH="/nfs/research/goldman/will/sim_output/"
-INDELIBLE_PATH="/hps/software/users/goldman/will/INDELIBLEV1.03/bin/indelible"
+INDELIBLE_PATH="/hps/software/users/goldman/will/INDELibleV1.03/bin/indelible"
 SEQ_GEN_PATH="/hps/software/users/goldman/will/Seq-Gen-1.3.4/source/seq-gen"
 REF_PATH="/nfs/research/goldman/will/ecoli.fasta"
 
