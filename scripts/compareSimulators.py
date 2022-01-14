@@ -1,14 +1,11 @@
 #import sys
 import os
 import subprocess
-import math
-import random
-import hashlib
 import numpy as np
 import os.path
 #from os import path
 import argparse
-from ete3 import Tree
+
 import time
 
 #script to compare the running time of phastSim with pyvolve, seq-gen and indelible.
@@ -198,6 +195,30 @@ def rescaleTree(node,scale):
 
 times=[[],[],[],[],[],[],[],[]]
 memory=[[],[],[],[],[],[],[],[]]
+
+# this is done to 'warm up' the random tree generator. 
+# For some reason it is super slow the first time it is run 
+treeFile="simulationOutput_repl"+str('warm_up_test')+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+".tree"
+treeFile2="simulationOutput_repl"+str('warm_up_test')+"_nLeaves"+str(nLeaves)+"_scale"+str(scale)+"_2.tree"
+
+#use custom script - works well even for huge phylogenies
+import random_tree
+tree = random_tree.gen_tree(length, 0.0*float(length), min_leaves=nLeaves, labels="enum", seed=seed+r)
+rescaleTree(tree,scale)
+tString=tree.write()
+tString=tString.replace(")1",")")
+#tString=tString.replace(":0)",":1.0e-09)").replace(":0,",":1.0e-09,")
+#print(tString)
+tString2=tString
+tString3=branch_lengths_2_decimals(tString2.replace(";",""))
+
+file=open(pathSimu+treeFile,"w")
+file.write(tString+"\n")
+file.close()
+file=open(pathSimu+treeFile2,"w")
+file.write(tString2+"\n")
+file.close()
+
 
 for r in range(nReplicates):
     #times2=[]
