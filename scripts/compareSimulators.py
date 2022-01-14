@@ -203,7 +203,7 @@ treeFile2="simulationOutput_repl"+str('warm_up_test')+"_nLeaves"+str(nLeaves)+"_
 
 #use custom script - works well even for huge phylogenies
 import random_tree
-tree = random_tree.gen_tree(length, 0.0*float(length), min_leaves=nLeaves, labels="enum", seed=seed+r)
+tree = random_tree.gen_tree(length, 0.0*float(length), min_leaves=nLeaves, labels="enum", seed=seed+99)
 rescaleTree(tree,scale)
 tString=tree.write()
 tString=tString.replace(")1",")")
