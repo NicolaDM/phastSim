@@ -29,6 +29,13 @@ or
 git clone https://github.com/NicolaDM/phastSim
 ```
 
+After cloning the repository, local installation with pip might still be require, for example executing
+```sh
+pip install -e .
+```
+within the phastSim directory.
+
+
 ### Dependencies
 
 phastSim requires the Python packages [numpy](https://numpy.org/), [importlib_resources](https://importlib-resources.readthedocs.io/en/latest/), [ete3](http://etetoolkit.org/), [biopython](https://biopython.org/), [protobuf](https://pypi.org/project/protobuf/), and [google](https://pypi.org/project/google/). These packages are all available through both `PyPi`:
