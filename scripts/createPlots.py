@@ -1,8 +1,14 @@
 import matplotlib.pyplot as plt
 import numpy as np
 #from matplotlib.patches import Polygon
+import argparse
 
-pathSimu = "/home/will/Desktop/projects/embl/phastSim/simulation_output_memory/"
+parser = argparse.ArgumentParser(description='Create figures showing the results from the simulator comparison.')
+#parser.add_argument('--path',default="", help='path where to find files and plot results.')
+parser.add_argument('--path',default="/home/will/Desktop/projects/embl/phastSim/simulation_output_memory/", help='folder path where to create the figures.')
+args = parser.parse_args()
+
+pathSimu = args.path
 
 #BOXPlot drawing
 def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel,topPlot,bottom=0.0001,degreeSkew=45, memoryTitle=False):
@@ -115,7 +121,7 @@ def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,bottom=0.0001, top
     
     plt.legend(loc='upper left')
     #plt.show()
-    fig.savefig(plotFileName)
+    fig.savefig(plotFileName,bbox_inches='tight')
 
 
 names=["tree generation","phastSim","phastSim+Fasta","pyvolve","SeqGen","INDELible-m1","INDELible-m2"]
@@ -196,7 +202,7 @@ times=[times10,times20,times50,times100,times200,times500,times1000,times2000,ti
 
 
 #generate boxplot of general running times
-boxplot(times,names,pathSimu+"boxplot_times_general.pdf",nLeaves,colors,'Number of tips',70)
+##boxplot(times,names,pathSimu+"boxplot_times_general.pdf",nLeaves,colors,'Number of tips',70)
 nLeaves = [10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000]
 errplot(times,names,pathSimu+"errplot_times_general.pdf",nLeaves,colors,'Number of tips',70)
 
@@ -227,7 +233,7 @@ timeBac1000000=[[104.68626022338867, 103.24694919586182, 123.30262994766235, 116
 nLeaves=["100","1000","10^4","10^5","10^6"]
 times=[[timeBac100[1],timeBac100[3],timeBac100[5]],[timeBac1000[1],timeBac1000[3],timeBac1000[5]],[timeBac10000[1],timeBac10000[3],timeBac10000[5]],[timeBac100000[1],timeBac100000[3],timeBac100000[5]],[timeBac1000000[1],timeBac1000000[3],timeBac1000000[5]]]
 
-boxplot(times,names,pathSimu+"boxplot_times_bacteria.pdf",nLeaves,colors,'Number of tips',1000, bottom=1.0)
+#boxplot(times,names,pathSimu+"boxplot_times_bacteria.pdf",nLeaves,colors,'Number of tips',1000, bottom=1.0)
 nLeaves = [100, 1000, 10000, 100000, 1000000]
 errplot(times,names,pathSimu+"errplot_times_bacteria.pdf",nLeaves,colors,'Number of tips',1000, 1.0)
 
@@ -369,9 +375,9 @@ times500000=[[39.163872957229614, 65.84751892089844, 94.76111960411072, 78.82037
 #[[26.597529888153076, 26.255186319351196, 25.45920157432556, 26.60333824157715, 25.42155122756958, 26.99942398071289, 27.04834246635437, 26.52974557876587, 25.9949049949646], [55.8808376789093, 55.209341526031494, 58.32216477394104, 55.4736225605011, 58.93256855010986, 55.726035594940186, 55.22979021072388, 59.64866805076599, 55.40555381774902],['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN' ], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN' ], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN' ]]
 nLeaves=["10","20","50","100","200","500","1000","2000","5000","10^4", "2x10^4", "5x10^4","10^5", "2x10^5", "5x10^5"]
 times=[times10,times20,times50,times100,times200,times500,times1000,times2000,times5000,times10000, times20000, times50000, times100000, times200000, times500000]
-boxplot(times, names, pathSimu+"boxplot_times_indels.pdf", nLeaves, colors, "Number of tips", 40)
+#boxplot(times, names, pathSimu+"boxplot_times_indels.pdf", nLeaves, colors, "Number of tips", 40)
 nLeaves = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000]
-errplot(times, names, pathSimu+"errplot_times_indels.pdf", nLeaves, colors, 40)
+errplot(times, names, pathSimu+"errplot_times_indels.pdf", nLeaves, colors,'Number of tips', 40)
 
 
 
@@ -402,7 +408,7 @@ memory500000=[[839320, 840184, 839596, 840056, 839120, 839440, 839784, 839764, 8
 memory=[memory10,memory20,memory50,memory100,memory200,memory500,memory1000,memory2000,memory5000,memory10000,memory20000,memory50000,memory100000,memory200000,memory500000]
 nLeaves=["10","20","50","100","200","500","1000","2000","5000","10^4","2x10^4","5x10^4","10^5","2x10^5","5x10^5"]
 
-boxplot(memory,names,pathSimu+"boxplot_memory_general.pdf",nLeaves,colors,'Number of tips',10000000, bottom=1000.0, memoryTitle=True)
+#boxplot(memory,names,pathSimu+"boxplot_memory_general.pdf",nLeaves,colors,'Number of tips',10000000, bottom=1000.0, memoryTitle=True)
 nLeaves=[10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000]
 errplot(memory,names,pathSimu+"errplot_memory_general.pdf",nLeaves,colors,'Number of tips', memoryTitle=True)
 
@@ -422,7 +428,7 @@ memoryBac1000000=[['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'
 nLeaves=["100","1000","10^4","10^5","10^6"]
 memory=[[memoryBac100[1],memoryBac100[3],memoryBac100[5]],[memoryBac1000[1],memoryBac1000[3],memoryBac1000[5]],[memoryBac10000[1],memoryBac10000[3],memoryBac10000[5]],[memoryBac100000[1],memoryBac100000[3],memoryBac100000[5]],[memoryBac1000000[1],memoryBac1000000[3],memoryBac1000000[5]]]
 
-boxplot(memory,names,pathSimu+"boxplot_memory_bacteria.pdf",nLeaves,colors,'Number of tips',100000000, bottom=1000.0, memoryTitle=True)
+#boxplot(memory,names,pathSimu+"boxplot_memory_bacteria.pdf",nLeaves,colors,'Number of tips',100000000, bottom=1000.0, memoryTitle=True)
 nLeaves = [100, 1000, 10000, 100000, 1000000]
 errplot(memory,names,pathSimu+"errplot_memory_bacteria.pdf",nLeaves,colors,'Number of tips', memoryTitle=True)
 
@@ -542,6 +548,6 @@ memory500000=[[963008, 962580, 968484, 960092, 967400, 960868, 960536, 962252, 9
 nLeaves=["10","20","50","100","200","500","1000","2000","5000","10^4", "2x10^4", "5x10^4","10^5", "2x10^5", "5x10^5"]
 memory=[memory10,memory20,memory50,memory100,memory200,memory500,memory1000,memory2000,memory5000,memory10000, memory20000, memory50000, memory100000, memory200000, memory500000]
 
-boxplot(memory, names, pathSimu+"boxplot_memory_indels.pdf", nLeaves, colors, "Number of tips", 10000000, bottom=1000, memoryTitle=True)
+#boxplot(memory, names, pathSimu+"boxplot_memory_indels.pdf", nLeaves, colors, "Number of tips", 10000000, bottom=1000, memoryTitle=True)
 nLeaves = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000]
 errplot(memory, names, pathSimu+"errplot_memory_indels.pdf", nLeaves, colors, "Number of tips", memoryTitle=True)
