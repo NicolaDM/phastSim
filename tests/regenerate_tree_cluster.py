@@ -79,12 +79,13 @@ def get_raxml_rates(filepath):
 
     with open(filepath) as f:
         for line in f:
-            if len(line.split("Base frequencies:")) > 1:
-                results = (line.split("Base frequencies: ")[-1])
+            if len(line.split("Base frequencies: ")) > 1:
+                results = (line.split("Base frequencies: ")[-1]).strip()
 
-            if len(line.split("rates[0]")) > 1:
-                results = line.split("ac ag at cg ct gt: ")[-1] + " " + results
+            if len(line.split("ac ag at cg ct gt: ")) > 1:
+                results = line.split("ac ag at cg ct gt: ")[-1].strip() + " " + results
 
+    print(results)
     return results
 
 
@@ -157,7 +158,7 @@ if __name__ == "__main__":
 
         # try to regenerate the tree with RAxML
         os.system(f"""raxmlHPC \
-            -m GTRCAT -V -F -c 1 \
+            -m GTRCAT -V \
             -n rax_{i} \
             -s {OUTPUT_FOLDER}/phastSim_{i}.fasta \
             -p {np.random.randint(1000000000)} \
@@ -174,7 +175,7 @@ if __name__ == "__main__":
         rf_dist = input_tree.robinson_foulds(output_tree, unrooted_trees=True)[0]
 
         gtr_rates_formatted = np.array([float(x) for x in gtr_rates_string_formatted.split(" ")])
-        raxml_rates = np.array([float(x) for x in raxml_estimated_rates.split(" ")])
+        raxml_rates = np.array([float(x) for x in raxml_estimated_rates.strip().split(" ")])
         
         normalised_gtr_error_pc = 100.0 * np.sqrt(
             np.sum((gtr_rates_formatted - raxml_rates) ** 2) / np.sum(gtr_rates_formatted ** 2)
