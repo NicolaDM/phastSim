@@ -8,13 +8,13 @@ from collections import Counter
 from Bio import SeqIO
 
 
-N_SIMS = 5
-RANDOM_SEED = 0
-EXPECTED_N_MUTATIONS_PER_BRANCH = 3
+N_SIMS = 1
+RANDOM_SEED = 5
+EXPECTED_N_MUTATIONS_PER_BRANCH = 1000
 N_LEAVES = 8
 N_BRANCHES = 2 * N_LEAVES - 2
-GENOME_LENGTH = 10
-OUTPUT_FOLDER = "/home/will/Desktop/projects/embl/phastSim/simulation_output_14"
+GENOME_LENGTH = 1000000
+OUTPUT_FOLDER = "/nfs/research/goldman/will/test_output_1"
 ROOT_GENOME_FREQUENCIES_STRING = "0.1 0.2 0.3 0.4"
 
 
@@ -43,6 +43,21 @@ def rescale_tree(t, new_total_length):
     length = get_tree_length(t)
     scale_factor = float(new_total_length) / length
     _rescale_tree(t, scale_factor)
+
+def get_raxml_rates(filepath):
+
+    results = []
+
+    with open(filepath) as f:
+        for line in f:
+            if len(line.split("Base frequencies:")) > 1:
+                results = (line.split("Base frequencies: ")[-1])
+
+            if len(line.split("rates[0]")) > 1:
+                results = line.split("ac ag at cg ct gt: ")[-1] + " " + results
+
+    return results
+
 
 if __name__ == "__main__":
 
@@ -79,7 +94,8 @@ if __name__ == "__main__":
         --treeFile {OUTPUT_FOLDER}/null_tree.tree \
         --outpath {OUTPUT_FOLDER}/ \
         --outputFile my_ref \
-        --createFasta
+        --createFasta \
+        --seed {np.random.randint(1000000000)}
         """)
 
     reference = SeqIO.read(f"{OUTPUT_FOLDER}/my_ref.fasta", format="fasta")
@@ -101,17 +117,27 @@ if __name__ == "__main__":
             --mutationRates GTR {gtr_rates} \
             --outpath {OUTPUT_FOLDER}/ \
             --outputFile phastSim_{i} \
-            --createFasta
+            --createFasta \
+            --seed {np.random.randint(1000000000)}
             """
         )
 
         # try to regenerate the tree with RAxML
-        #os.system(f"""
-        #
-        #""")
+        os.system(f"""raxmlHPC \
+            -m GTRCAT -V \
+            -n rax_{i} \
+            -s phastSim_{i}.fasta \
+            -p {np.random.randint(1000000000)} \
+            -w {OUTPUT_FOLDER}/
+        """)
+
+        raxml_estimated_rates = get_raxml_rates(f"{OUTPUT_FOLDER}/RAxML_info.rax_{i}")
 
         # put the stuff that we want into an output file
         # that is:
         # i, input_gtr_rates, estimated_gtr_rates, input_tree_length, output_tree_length, RF_distance
         input_tree = Tree(newick=f"{OUTPUT_FOLDER}/tree_{i}.tree")
-        summary_file.write(f"{i}, {gtr_rates}, , {get_tree_length(input_tree)}, ,\n")
+        output_tree = Tree(f"{OUTPUT_FOLDER}/RAxML_result.rax_{i}")
+        rf_dist = input_tree.robinson_foulds(output_tree, unrooted_trees=True)[0]
+
+        summary_file.write(f"{i}, {gtr_rates}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}\n")

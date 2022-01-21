@@ -32,7 +32,7 @@ for t in $TIMES; do
             seqgenOptions="--seqgenSim"
         fi
 
-        if [ $t -gt 1001 ]
+        if [ $t -gt 5001 ]
         then
             indelibleOptions=""
         else
