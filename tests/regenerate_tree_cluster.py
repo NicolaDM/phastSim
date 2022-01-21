@@ -159,7 +159,7 @@ if __name__ == "__main__":
         os.system(f"""raxmlHPC \
             -m GTRCAT -V -F -c 1 \
             -n rax_{i} \
-            -s phastSim_{i}.fasta \
+            -s {OUTPUT_FOLDER}/phastSim_{i}.fasta \
             -p {np.random.randint(1000000000)} \
             -w {OUTPUT_FOLDER}/
         """)
