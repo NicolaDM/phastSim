@@ -28,6 +28,32 @@ def setup_args():
     parser.add_argument("--outputFolder", default=OUTPUT_FOLDER)
     parser.add_argument("--rootGenomeFrequencies", default=ROOT_GENOME_FREQUENCIES_STRING)
 
+    args = parser.parse_args()
+
+    global N_SIMS
+    N_SIMS = int(args.nSims)
+
+    global RANDOM_SEED
+    RANDOM_SEED = int(args.randomSeed)
+
+    global EXPECTED_N_MUTATIONS_PER_BRANCH
+    EXPECTED_N_MUTATIONS_PER_BRANCH = int(args.mutationsPerBranch)
+    
+    global N_LEAVES
+    N_LEAVES = int(args.nLeaves)
+
+    global N_BRANCHES
+    N_BRANCHES = 2 * N_LEAVES - 2
+
+    global GENOME_LENGTH
+    GENOME_LENGTH = int(args.genomeLength)
+
+    global OUTPUT_FOLDER
+    OUTPUT_FOLDER =args.outputFolder
+
+    global ROOT_GENOME_FREQUENCIES_STRING
+    ROOT_GENOME_FREQUENCIES_STRING = args.rootGenomeFrequencies
+
 def get_tree_length(t):
     
     return sum([x.dist + get_tree_length(x) for x in t.get_children()])
@@ -107,7 +133,11 @@ if __name__ == "__main__":
 
         # create some random GTR rates
         rates = np.random.uniform(size=6)
+        rate_gt = rates[-1]
         gtr_rates = " ".join([str(x) for x in rates]) + " " + OBSERVED_ROOT_GENOME_FREQUENCIES_STRING
+
+        # need this version formatted in the same way as raxml does their rates so they can be compared
+        gtr_rates_string_formatted = " ".join([str(x/rate_gt) for x in rates]) + " " + OBSERVED_ROOT_GENOME_FREQUENCIES_STRING
 
         # do the phastSim simulations
         os.system(
@@ -140,4 +170,4 @@ if __name__ == "__main__":
         output_tree = Tree(f"{OUTPUT_FOLDER}/RAxML_result.rax_{i}")
         rf_dist = input_tree.robinson_foulds(output_tree, unrooted_trees=True)[0]
 
-        summary_file.write(f"{i}, {gtr_rates}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}\n")
+        summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}\n")
