@@ -25,7 +25,11 @@ def setup_args():
     parser.add_argument("--genomeLength", default=GENOME_LENGTH)
     parser.add_argument("--outputFolder", default=OUTPUT_FOLDER)
     parser.add_argument("--rootGenomeFrequencies", default=ROOT_GENOME_FREQUENCIES_STRING)
+    return parser
 
+def load_args():
+
+    parser = setup_args()
     args = parser.parse_args()
 
     global N_SIMS
@@ -86,7 +90,7 @@ def get_raxml_rates(filepath):
 
 if __name__ == "__main__":
 
-    setup_args()
+    load_args()
 
     summary_file = open(f"{OUTPUT_FOLDER}/output.csv", "w")
     summary_file.write("index, input_gtr_rates, output_gtr_rates, input_tree_length, output_tree_length, RF_distance, normalised_gtr_error_percent\n")
