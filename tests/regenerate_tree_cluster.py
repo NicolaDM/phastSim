@@ -89,7 +89,7 @@ if __name__ == "__main__":
     setup_args()
 
     summary_file = open(f"{OUTPUT_FOLDER}/output.csv", "w")
-    summary_file.write("index, input_gtr_rates, output_gtr_rates, input_tree_length, output_tree_length, RF_distance\n")
+    summary_file.write("index, input_gtr_rates, output_gtr_rates, input_tree_length, output_tree_length, RF_distance, normalised_gtr_error_percent\n")
 
     # create N_sim many trees
     for i in range(N_SIMS):
@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
         # try to regenerate the tree with RAxML
         os.system(f"""raxmlHPC \
-            -m GTRCAT -V \
+            -m GTRCAT -V -F -c 1 \
             -n rax_{i} \
             -s phastSim_{i}.fasta \
             -p {np.random.randint(1000000000)} \
@@ -169,4 +169,11 @@ if __name__ == "__main__":
         output_tree = Tree(f"{OUTPUT_FOLDER}/RAxML_result.rax_{i}")
         rf_dist = input_tree.robinson_foulds(output_tree, unrooted_trees=True)[0]
 
-        summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}\n")
+        gtr_rates_formatted = np.array([float(x) for x in gtr_rates_string_formatted.split(" ")])
+        raxml_rates = np.array([float(x) for x in raxml_estimated_rates.split(" ")])
+        
+        normalised_gtr_error_pc = 100.0 * np.sqrt(
+            np.sum((gtr_rates_formatted - raxml_rates) ** 2) / np.sum(gtr_rates_formatted ** 2)
+        )
+
+        summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}, {normalised_gtr_error_pc}\n")
