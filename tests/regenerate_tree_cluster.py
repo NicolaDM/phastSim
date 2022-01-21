@@ -1,9 +1,7 @@
-import collections
 import os
 from ete3 import Tree
 import numpy as np
 import argparse
-from glob import glob
 from collections import Counter
 from Bio import SeqIO
 
@@ -35,6 +33,7 @@ def setup_args():
 
     global RANDOM_SEED
     RANDOM_SEED = int(args.randomSeed)
+    np.random.seed(RANDOM_SEED)
 
     global EXPECTED_N_MUTATIONS_PER_BRANCH
     EXPECTED_N_MUTATIONS_PER_BRANCH = int(args.mutationsPerBranch)
