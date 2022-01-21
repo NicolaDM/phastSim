@@ -31,7 +31,7 @@ def setup_args():
     parser.add_argument("--outputFolder", default=OUTPUT_FOLDER)
     parser.add_argument("--rootGenomeFrequencies", default=ROOT_GENOME_FREQUENCIES_STRING)
     parser.add_argument("--raxmlModelString", default=RAXML_MODEL_STRING)
-    parser.add_argument("phastSimOptions", default=PHASTSIM_OPTIONS)
+    parser.add_argument("--phastSimOptions", default=PHASTSIM_OPTIONS)
     return parser
 
 def load_args():
