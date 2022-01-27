@@ -79,7 +79,7 @@ def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel,topPlot,bo
     fig.savefig(plotFileName)
     plt.close()
 
-def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,bottom=0.0001, top=None, degreeSkew=45, memoryTitle=False):
+def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,bottom=0.0001, top=None, degreeSkew=45, memoryTitle=False, logXaxis=True):
     
     mean_times = []
     errors = []
@@ -110,7 +110,8 @@ def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,bottom=0.0001, top
     else:
         ax1.set_ylabel('Time (seconds)')
 
-    ax1.set_xscale('log')
+    if logXaxis:
+        ax1.set_xscale('log')
     ax1.set_yscale('log')
     ax1.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',   alpha=0.5)
     #ax1.errorbar(x, mean_times[0], yerr=errors[0], marker='x', c='blue', label='tree generation', fmt="o", capsize=2)
@@ -210,7 +211,7 @@ errplot(times,names,pathSimu+"errplot_times_general.pdf",nLeaves,colors,'Number 
 
 
 #generate boxplot for bacterial simulations
-names=["phastSim","phastSim vanilla","SeqGen"]
+names=["phastSim","phastSim non-hierarchical","SeqGen"]
 colors=["red","orange","purple"]
 
 
@@ -315,6 +316,7 @@ colors=["red","purple","yellow","brown"]
 models=["nucleotide","nuc+10cat","nuc+alpha","codon","codon+10cat","codon+alpha"]
 times=[[phastSim20000,seqgen1000,INDELible10,indelible2_100],[phastSim20000_10cat,seqgen1000_10cat,INDELible10_10cat,indelible2_100_10cat],[phastSim20000_alpha,seqgen1000_alpha,INDELible10_alpha,indelible2_100_alpha],[phastSim20000_codon,NaNs,INDELible10_codon,indelible2_100_codon],[phastSim20000_codon_10cat,NaNs,INDELible10_codon_10cat,indelible2_100_codon_10cat],[phastSim20000_codon_alpha,NaNs,NaNs,NaNs]]
 boxplot(times,names,pathSimu+"boxplot_times_models.pdf",models,colors,'Evolutionary model', 1000, bottom=1.0)
+errplot(times,names,pathSimu+"errplot_times_models.pdf",models,colors,'Evolutionary model',logXaxis=False)
 
 #errplot(times,names,pathSimu+"errplot_times_models.pdf",models,colors,'Evolutionary model',8)
 
@@ -363,11 +365,13 @@ indelible2_1000_scale10=[17.32891845703125, 16.479698181152344, 18.7206773757934
 #[2.167664051055908, 2.287310838699341, 2.236577272415161, 2.8197178840637207, 2.210618257522583, 2.7641654014587402, 2.709766387939453, 2.6123392581939697, 2.589970111846924, 2.659174919128418]
 #[12.04808497428894, 11.315619945526123, 11.326038122177124, 11.52104902267456, 11.497009992599487, 11.315742015838623, 11.406708002090454, 11.539706945419312, 11.63560700416565, 11.623785018920898]
 
-names=["phastSim (100,000 tips)","SeqGen (5,000 tips)","INDELible-m1 (1000 tips)","INDELible-m2 (1000 tips)"]
+#names=["phastSim (100,000 tips)","SeqGen (5,000 tips)","INDELible-m1 (1000 tips)","INDELible-m2 (1000 tips)"]
+names=["phastSim","SeqGen","INDELible-m1","INDELible-m2"]
 colors=["red","purple","yellow","brown"]
 lengths=["0.1","1","10"]
 times=[[phastSim100000_scale01,seqgen5000_scale01,indelible1000_scale01,indelible2_1000_scale01],[phastSim100000,seqgen5000,indelible1000,indelible2_1000],[phastSim100000_scale10,seqgen5000_scale10,indelible1000_scale10,indelible2_1000_scale10]]
 boxplot(times,names,pathSimu+"boxplot_times_rescale.pdf",lengths,colors,'branch length rescale factor',70, bottom=0.1,degreeSkew=0)
+errplot(times,names,pathSimu+"errplot_times_rescale.pdf",lengths,colors,'branch length rescale factor',logXaxis=False)
 
 lengths = [0.1, 1, 10]
 #errplot(times,names,pathSimu+"errplot_times_rescale.pdf",lengths,colors,'branch length rescale factor',70)
@@ -503,7 +507,7 @@ colors=["red","purple","yellow","brown"]
 models=["nucleotide","nuc+10cat","nuc+alpha","codon","codon+10cat","codon+alpha"]
 times=[[phastSim20000,seqgen1000,INDELible10,indelible2_100],[phastSim20000_10cat,seqgen1000_10cat,INDELible10_10cat,indelible2_100_10cat],[phastSim20000_alpha,seqgen1000_alpha,INDELible10_alpha,indelible2_100_alpha],[phastSim20000_codon,NaNs,INDELible10_codon,indelible2_100_codon],[phastSim20000_codon_10cat,NaNs,INDELible10_codon_10cat,indelible2_100_codon_10cat],[phastSim20000_codon_alpha,NaNs,NaNs,NaNs]]
 boxplot(times,names,pathSimu+"boxplot_memory_models.pdf",models,colors,'Evolutionary model', 1000000, bottom=1000.0, memoryTitle=True)
-
+errplot(times,names,pathSimu+"errplot_memory_models.pdf",models,colors,'Evolutionary model', memoryTitle=True,logXaxis=False)
 
 # scale simulations
 
@@ -527,6 +531,7 @@ colors=["red","purple","yellow","brown"]
 lengths=["0.1","1","10"]
 times=[[phastSim100000_scale01,seqgen5000_scale01,indelible1000_scale01,indelible2_1000_scale01],[phastSim100000,seqgen5000,indelible1000,indelible2_1000],[phastSim100000_scale10,seqgen5000_scale10,indelible1000_scale10,indelible2_1000_scale10]]
 boxplot(times,names,pathSimu+"boxplot_memory_rescale.pdf",lengths,colors,'branch length rescale factor',10000000, bottom=1000.0, degreeSkew=0, memoryTitle=True)
+errplot(times,names,pathSimu+"errplot_memory_rescale.pdf",lengths,colors,'branch length rescale factor', memoryTitle=True,logXaxis=False)
 
 lengths = [0.1, 1, 10]
 #errplot(times,names,pathSimu+"errplot_times_rescale.pdf",lengths,colors,'branch length rescale factor',70)
