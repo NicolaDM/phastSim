@@ -3,6 +3,9 @@ import numpy as np
 #from matplotlib.patches import Polygon
 import argparse
 
+#Script to create plots from the results of the simulations.
+#Unfortunately one needs to copy-paste the numerical values from the simulation results into this script.
+
 parser = argparse.ArgumentParser(description='Create figures showing the results from the simulator comparison.')
 #parser.add_argument('--path',default="", help='path where to find files and plot results.')
 parser.add_argument('--path',default="/home/will/Desktop/projects/embl/phastSim/simulation_output_memory/", help='folder path where to create the figures.')

@@ -1,8 +1,4 @@
 
-
-# Import Python standard libraries
-#import math
-#import random
 import os
 import numpy as np
 from numpy import mean
@@ -11,13 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 
-# Import 3rd party libraries
-#import numpy as np
-#from ete3 import Tree
-
-# Import other modules from this library
-#import utils.py
-#import hashlib
+#script that simulates indels in phastSim and compares their distribution to INDELible and makes plots showing the comparison in a few scenarios.
 
 
 

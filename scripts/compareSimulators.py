@@ -10,7 +10,7 @@ import time
 
 #script to compare the running time of phastSim with pyvolve, seq-gen and indelible.
 
-# python compareSimulators.py --nLeaves 100 --createFasta --pyvolveSim --seqgenSim --indelibleSim --indelibleSim2
+#example: python compareSimulators.py --nLeaves 100 --createFasta --pyvolveSim --seqgenSim --indelibleSim --indelibleSim2
 
 parser = argparse.ArgumentParser(description='Compare simulators, in particular phastSim, seq-gen, indelible and pyvolve.')
 #parser.add_argument('--path',default="/Users/demaio/Desktop/coronavirus/simulations/", help='Path where to write simulation output.')
