@@ -155,7 +155,7 @@ if __name__ == "__main__":
         --createFasta {PHASTSIM_OPTIONS.replace("+", " ")} \
         --seed {np.random.randint(1000000000)}
         """)
-        
+
 
     reference = SeqIO.read(f"{OUTPUT_FOLDER}/my_ref.fasta", format="fasta")
     observed_frequencies = Counter(reference.seq)
