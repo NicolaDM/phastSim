@@ -8,7 +8,7 @@ source $HOME/.bashrc
 module add raxml-8.2.11-gcc-9.3.0-mjwrm3x
 
 python /hps/software/users/goldman/will/phastSim/tests/regenerate_tree_cluster.py \
-    --nSims 10 \
+    --nSims 100 \
     --genomeLength 1000 \
     --randomSeed 198 \
     --nLeaves 128 \
