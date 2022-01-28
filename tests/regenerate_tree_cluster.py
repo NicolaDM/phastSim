@@ -99,6 +99,18 @@ def get_raxml_rates(filepath):
     print(results)
     return results
 
+def get_raxml_invariable_proportion(filepath):
+
+    result = "NaN"
+
+    with open(filepath) as f:
+        for line in f:
+            if len(line.split("invar[0]: ")) > 1:
+                result = (line.split("invar[0]: ")[-1]).split()[0]
+
+    print(result)
+    return result
+
 
 def search_params(phastSim_string, parameter):
     for options in phastSim_string.split("--"):
@@ -176,6 +188,10 @@ if __name__ == "__main__":
         if PHASTSIM_OPTIONS != "":
             if "--mutationRates" in PHASTSIM_OPTIONS:
                 mutation_rates_string = ""
+                mutation_rate_parameters = search_params(PHASTSIM_OPTIONS, "mutationsRates")
+                if mutation_rate_parameters:
+                    if mutation_rate_parameters[0] == "JC69":
+                        gtr_rates_string_formatted = " ".join([1.0] * 6) + " " + OBSERVED_ROOT_GENOME_FREQUENCIES_STRING
 
         # do the phastSim simulations
         os.system(
@@ -216,6 +232,11 @@ if __name__ == "__main__":
         )
 
         if PHASTSIM_OPTIONS != "":
-            summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}, {normalised_gtr_error_pc}, {phastSim_alpha}, {phastSim_category_rates}, {phastSim_category_probs}, {invariable_options}, {0}, {0}, {0}, {0}\n")
+            output_alpha = "NaN"
+            output_category_rates = "NaN" 
+            output_category_probs = "NaN" 
+            output_invariable_proportion = get_raxml_invariable_proportion(f"{OUTPUT_FOLDER}/RAxML_info.rax_{i}")
+
+            summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}, {normalised_gtr_error_pc}, {phastSim_alpha}, {phastSim_category_rates}, {phastSim_category_probs}, {invariable_options}, {output_alpha}, {output_category_rates}, {output_category_probs}, {output_invariable_proportion}\n")
         else:
             summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}, {normalised_gtr_error_pc}\n")
