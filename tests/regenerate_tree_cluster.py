@@ -1,7 +1,5 @@
 import os
-from unicodedata import category
 from ete3 import Tree
-from googlesearch import search
 import numpy as np
 import argparse
 from collections import Counter
@@ -18,7 +16,7 @@ OUTPUT_FOLDER = "/nfs/research/goldman/will/test_output_1"
 ROOT_GENOME_FREQUENCIES_STRING = "0.1 0.2 0.3 0.4"
 # these two parameters with pluses instead of spaces otherwise it will screw up the argument parser
 RAXML_MODEL_STRING = "-m+GTRCAT+-V"
-PHASTSIM_OPTIONS = None
+PHASTSIM_OPTIONS = ""
 
 
 def setup_args():
@@ -115,7 +113,7 @@ if __name__ == "__main__":
     load_args()
 
     summary_file = open(f"{OUTPUT_FOLDER}/output.csv", "w")
-    if PHASTSIM_OPTIONS != None:
+    if PHASTSIM_OPTIONS != "":
         
         invariable_options = search_params(PHASTSIM_OPTIONS, "invariable")
         phastSim_category_rates = search_params(PHASTSIM_OPTIONS, "categoryRates")
@@ -147,8 +145,6 @@ if __name__ == "__main__":
     with open(f"{OUTPUT_FOLDER}/null_tree.tree", "w") as null_tree_file:
         null_tree_file.write(null_tree.write())
 
-    if PHASTSIM_OPTIONS != None:
-
         os.system(
             f"""phastSim \
             --rootGenomeLength {GENOME_LENGTH} \
@@ -156,22 +152,10 @@ if __name__ == "__main__":
             --treeFile {OUTPUT_FOLDER}/null_tree.tree \
             --outpath {OUTPUT_FOLDER}/ \
             --outputFile my_ref \
-            --createFasta \
-            {PHASTSIM_OPTIONS.replace("+", " ")} \
+            --createFasta {PHASTSIM_OPTIONS.replace("+", " ")} \
             --seed {np.random.randint(1000000000)}
             """)
-    else:
-
-        os.system(
-            f"""phastSim \
-            --rootGenomeLength {GENOME_LENGTH} \
-            --rootGenomeFrequencies {ROOT_GENOME_FREQUENCIES_STRING} \
-            --treeFile {OUTPUT_FOLDER}/null_tree.tree \
-            --outpath {OUTPUT_FOLDER}/ \
-            --outputFile my_ref \
-            --createFasta \
-            --seed {np.random.randint(1000000000)}
-            """)
+        
 
     reference = SeqIO.read(f"{OUTPUT_FOLDER}/my_ref.fasta", format="fasta")
     observed_frequencies = Counter(reference.seq)
@@ -188,12 +172,17 @@ if __name__ == "__main__":
         # need this version formatted in the same way as raxml does their rates so they can be compared
         gtr_rates_string_formatted = " ".join([str(x/rate_gt) for x in rates]) + " " + OBSERVED_ROOT_GENOME_FREQUENCIES_STRING
 
+        mutation_rates_string = "-- mutationRates GTR " + gtr_rates
+        if PHASTSIM_OPTIONS != "":
+            if "--mutationRates" in PHASTSIM_OPTIONS:
+                mutation_rates_string = ""
+
         # do the phastSim simulations
         os.system(
             f"""phastSim \
             --reference {OUTPUT_FOLDER}/my_ref.fasta \
             --treeFile {OUTPUT_FOLDER}/tree_{i}.tree \
-            --mutationRates GTR {gtr_rates} \
+            {mutation_rates_string} {PHASTSIM_OPTIONS.replace("+", " ")} \
             --outpath {OUTPUT_FOLDER}/ \
             --outputFile phastSim_{i} \
             --createFasta \
@@ -226,7 +215,7 @@ if __name__ == "__main__":
             np.sum((gtr_rates_formatted - raxml_rates) ** 2) / np.sum(gtr_rates_formatted ** 2)
         )
 
-        if PHASTSIM_OPTIONS != None:
+        if PHASTSIM_OPTIONS != "":
             summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}, {normalised_gtr_error_pc}, {phastSim_alpha}, {phastSim_category_rates}, {phastSim_category_probs}, {invariable_options}, {0}, {0}, {0}, {0}\n")
         else:
             summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}, {normalised_gtr_error_pc}\n")
