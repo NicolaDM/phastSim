@@ -145,17 +145,17 @@ if __name__ == "__main__":
     with open(f"{OUTPUT_FOLDER}/null_tree.tree", "w") as null_tree_file:
         null_tree_file.write(null_tree.write())
 
-        os.system(
-            f"""phastSim \
-            --rootGenomeLength {GENOME_LENGTH} \
-            --rootGenomeFrequencies {ROOT_GENOME_FREQUENCIES_STRING} \
-            --treeFile {OUTPUT_FOLDER}/null_tree.tree \
-            --outpath {OUTPUT_FOLDER}/ \
-            --outputFile my_ref \
-            --createFasta {PHASTSIM_OPTIONS.replace("+", " ")} \
-            --seed {np.random.randint(1000000000)}
-            """)
-        
+    os.system(
+        f"""phastSim \
+        --rootGenomeLength {GENOME_LENGTH} \
+        --rootGenomeFrequencies {ROOT_GENOME_FREQUENCIES_STRING} \
+        --treeFile {OUTPUT_FOLDER}/null_tree.tree \
+        --outpath {OUTPUT_FOLDER}/ \
+        --outputFile my_ref \
+        --createFasta {PHASTSIM_OPTIONS.replace("+", " ")} \
+        --seed {np.random.randint(1000000000)}
+        """)
+
 
     reference = SeqIO.read(f"{OUTPUT_FOLDER}/my_ref.fasta", format="fasta")
     observed_frequencies = Counter(reference.seq)
