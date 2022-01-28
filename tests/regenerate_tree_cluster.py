@@ -13,7 +13,7 @@ N_LEAVES = 8
 N_BRANCHES = 2 * N_LEAVES - 2
 GENOME_LENGTH = 1000000
 OUTPUT_FOLDER = "/nfs/research/goldman/will/test_output_1"
-ROOT_GENOME_FREQUENCIES_STRING = "0.1 0.2 0.3 0.4"
+ROOT_GENOME_FREQUENCIES_STRING = "0.1+0.2+0.3+0.4"
 # these two parameters with pluses instead of spaces otherwise it will screw up the argument parser
 RAXML_MODEL_STRING = "-m+GTRCAT+-V"
 PHASTSIM_OPTIONS = ""
@@ -145,16 +145,16 @@ if __name__ == "__main__":
     with open(f"{OUTPUT_FOLDER}/null_tree.tree", "w") as null_tree_file:
         null_tree_file.write(null_tree.write())
 
-        os.system(
-            f"""phastSim \
-            --rootGenomeLength {GENOME_LENGTH} \
-            --rootGenomeFrequencies {ROOT_GENOME_FREQUENCIES_STRING} \
-            --treeFile {OUTPUT_FOLDER}/null_tree.tree \
-            --outpath {OUTPUT_FOLDER}/ \
-            --outputFile my_ref \
-            --createFasta {PHASTSIM_OPTIONS.replace("+", " ")} \
-            --seed {np.random.randint(1000000000)}
-            """)
+    os.system(
+        f"""phastSim \
+        --rootGenomeLength {GENOME_LENGTH} \
+        --rootGenomeFrequencies {ROOT_GENOME_FREQUENCIES_STRING.replace("+", " ")} \
+        --treeFile {OUTPUT_FOLDER}/null_tree.tree \
+        --outpath {OUTPUT_FOLDER}/ \
+        --outputFile my_ref \
+        --createFasta {PHASTSIM_OPTIONS.replace("+", " ")} \
+        --seed {np.random.randint(1000000000)}
+        """)
         
 
     reference = SeqIO.read(f"{OUTPUT_FOLDER}/my_ref.fasta", format="fasta")
