@@ -9,7 +9,7 @@ module add raxml-8.2.11-gcc-9.3.0-mjwrm3x
 module add raxml-ng-1.0.2-gcc-9.3.0-uicuzej
 
 python /hps/software/users/goldman/will/phastSim/tests/regenerate_tree_cluster.py \
-    --nSims 100 \
+    --nSims 1 \
     --genomeLength 1000 \
     --randomSeed 197 \
     --nLeaves 128 \
