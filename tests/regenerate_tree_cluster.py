@@ -250,7 +250,7 @@ if __name__ == "__main__":
                 mutation_rate_parameters = search_params(PHASTSIM_OPTIONS, "mutationRates")
                 if mutation_rate_parameters:
                     if "JC69" in mutation_rate_parameters:
-                        gtr_rates_string_formatted = " ".join([1.0] * 6) + " " + OBSERVED_ROOT_GENOME_FREQUENCIES_STRING
+                        gtr_rates_string_formatted = " ".join(["1.0"] * 6) + " " + OBSERVED_ROOT_GENOME_FREQUENCIES_STRING
 
         # do the phastSim simulations
         os.system(
