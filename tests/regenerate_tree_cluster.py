@@ -89,17 +89,24 @@ def rescale_tree(t, new_total_length):
     scale_factor = float(new_total_length) / length
     _rescale_tree(t, scale_factor)
 
-def get_raxml_rates(filepath):
+def get_raxml_rates(filepath, raxml_ng):
+
+    if raxml_ng:
+        freqs_word = "Base frequencies (model): "
+        rates_word = "Substitution rates (model): "
+    else:
+        freqs_word = "Base frequencies: "
+        rates_word = "ac ag at cg ct gt: "
 
     results = []
 
     with open(filepath) as f:
         for line in f:
-            if len(line.split("Base frequencies: ")) > 1:
-                results = (line.split("Base frequencies: ")[-1]).strip()
+            if len(line.split(freqs_word)) > 1:
+                results = (line.split(freqs_word)[-1]).strip()
 
-            if len(line.split("ac ag at cg ct gt: ")) > 1:
-                results = line.split("ac ag at cg ct gt: ")[-1].strip() + " " + results
+            if len(line.split()) > 1:
+                results = line.split(rates_word)[-1].strip() + " " + results
 
     print(results)
     return results
@@ -280,7 +287,7 @@ if __name__ == "__main__":
         else:
             raxml_info_file = f"RAxML_info.rax_{i}"
 
-        raxml_estimated_rates = get_raxml_rates(f"{OUTPUT_FOLDER}/{raxml_info_file}")
+        raxml_estimated_rates = get_raxml_rates(f"{OUTPUT_FOLDER}/{raxml_info_file}", USE_RAXML_NG)
 
         # put the stuff that we want into an output file
         # that is:
