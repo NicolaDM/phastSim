@@ -167,7 +167,7 @@ def get_raxml_category_probs(filepath, phastSim_category_probs):
                 l = (line.split("weights&rates: ")[-1])
                 wr = [x.strip("()").split(",") for x in l.split()]
 
-                result = " ".join([x[1] for x in wr])
+                result = " ".join([x[0] for x in wr])
 
     return result
 
