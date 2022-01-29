@@ -105,7 +105,7 @@ def get_raxml_rates(filepath, raxml_ng):
             if len(line.split(freqs_word)) > 1:
                 results = (line.split(freqs_word)[-1]).strip()
 
-            if len(line.split()) > 1:
+            if len(line.split(rates_word)) > 1:
                 results = line.split(rates_word)[-1].strip() + " " + results
 
     print(results)
