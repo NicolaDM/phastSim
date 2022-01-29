@@ -132,8 +132,8 @@ def get_raxml_alpha(filepath, phastSim_alpha):
 
     with open(filepath) as f:
         for line in f:
-            if len(line.split("alpha[0]: ")) > 1:
-                result = (line.split("alpha[0]: ")[-1]).split()[0]
+            if len(line.split("alpha: ")) > 1:
+                result = (line.split("alpha: ")[-1]).split()[0]
 
     return result
 
@@ -247,7 +247,7 @@ if __name__ == "__main__":
         if PHASTSIM_OPTIONS != "":
             if "--mutationRates" in PHASTSIM_OPTIONS:
                 mutation_rates_string = ""
-                mutation_rate_parameters = search_params(PHASTSIM_OPTIONS, "mutationsRates")
+                mutation_rate_parameters = search_params(PHASTSIM_OPTIONS, "mutationRates")
                 if mutation_rate_parameters:
                     if "JC69" in mutation_rate_parameters:
                         gtr_rates_string_formatted = " ".join([1.0] * 6) + " " + OBSERVED_ROOT_GENOME_FREQUENCIES_STRING
