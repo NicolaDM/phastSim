@@ -130,11 +130,39 @@ def get_raxml_alpha(filepath, phastSim_alpha):
 
     return result
 
-def get_raxml_category_rates(filepath):
-    return "NaN"
+def get_raxml_category_rates(filepath, phastSim_category_rates):
 
-def get_raxml_category_probs(filepath):
-    return "NaN"
+    result = "NaN"
+
+    if phastSim_category_rates == "NaN":
+        return result 
+
+    with open(filepath) as f:
+        for line in f:
+            if len(line.split("weights&rates: ")) > 1:
+                l = (line.split("weights&rates: ")[-1])
+                wr = [x.strip("()").split(",") for x in l.split()]
+
+                result = " ".join([x[1] for x in wr])
+
+    return result
+
+def get_raxml_category_probs(filepath, phastSim_category_probs):
+
+    result = "NaN"
+
+    if phastSim_category_probs == "NaN":
+        return result 
+
+    with open(filepath) as f:
+        for line in f:
+            if len(line.split("weights&rates: ")) > 1:
+                l = (line.split("weights&rates: ")[-1])
+                wr = [x.strip("()").split(",") for x in l.split()]
+
+                result = " ".join([x[1] for x in wr])
+
+    return result
 
 def search_params(phastSim_string, parameter):
     for options in phastSim_string.split("--"):
@@ -248,7 +276,7 @@ if __name__ == "__main__":
             """)
 
         if USE_RAXML_NG:
-            raxml_info_file = f""
+            raxml_info_file = f"rax_{i}.raxml.log"
         else:
             raxml_info_file = f"RAxML_info.rax_{i}"
 
