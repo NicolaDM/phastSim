@@ -310,8 +310,8 @@ if __name__ == "__main__":
 
         if PHASTSIM_OPTIONS != "":
             output_alpha = get_raxml_alpha(f"{OUTPUT_FOLDER}/{raxml_info_file}", phastSim_alpha)
-            output_category_rates = get_raxml_category_rates(f"{OUTPUT_FOLDER}/{raxml_info_file}")
-            output_category_probs = get_raxml_category_probs(f"{OUTPUT_FOLDER}/{raxml_info_file}")
+            output_category_rates = get_raxml_category_rates(f"{OUTPUT_FOLDER}/{raxml_info_file}", phastSim_category_rates)
+            output_category_probs = get_raxml_category_probs(f"{OUTPUT_FOLDER}/{raxml_info_file}", phastSim_category_probs)
             output_invariable_proportion = get_raxml_invariable_proportion(f"{OUTPUT_FOLDER}/{raxml_info_file}")
 
             summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}, {normalised_gtr_error_pc}, {phastSim_alpha}, {phastSim_category_rates}, {phastSim_category_probs}, {invariable_options}, {output_alpha}, {output_category_rates}, {output_category_probs}, {output_invariable_proportion}\n")
