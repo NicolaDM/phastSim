@@ -233,7 +233,7 @@ if __name__ == "__main__":
         # try to regenerate the tree with RAxML
         if USE_RAXML_NG:
             os.system(f"""raxml-ng \
-                {RAXML_MODEL_STRING.replace("&", " ")} \
+                {RAXML_MODEL_STRING.replace("~", " ")} \
                 --msa {OUTPUT_FOLDER}/phastSim_{i}.fasta \
                 --prefix {OUTPUT_FOLDER}/rax_{i} \
                 --seed {np.random.randint(1000000000)} 

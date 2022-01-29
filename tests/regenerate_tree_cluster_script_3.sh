@@ -14,7 +14,7 @@ python /hps/software/users/goldman/will/phastSim/tests/regenerate_tree_cluster.p
     --randomSeed 197 \
     --nLeaves 128 \
     --mutationsPerBranch 100 \
-    --raxmlModelString &--model&JC+G20 \
+    --raxmlModelString ~--model~JC+G20 \
     --rootGenomeFrequencies 0.25+0.25+0.25+0.25 \
     --phastSimOptions +--alpha+1.5+--mutationRates+JC69 \
     --RAXMLNG True \
