@@ -17,6 +17,7 @@ ROOT_GENOME_FREQUENCIES_STRING = "0.1+0.2+0.3+0.4"
 # these two parameters with pluses instead of spaces otherwise it will screw up the argument parser
 RAXML_MODEL_STRING = "-m+GTRCAT+-V"
 PHASTSIM_OPTIONS = ""
+USE_RAXML_NG = False
 
 
 def setup_args():
@@ -30,6 +31,7 @@ def setup_args():
     parser.add_argument("--rootGenomeFrequencies", default=ROOT_GENOME_FREQUENCIES_STRING)
     parser.add_argument("--raxmlModelString", default=RAXML_MODEL_STRING)
     parser.add_argument("--phastSimOptions", default=PHASTSIM_OPTIONS)
+    parser.add_argument("--RAXMLNG", default=USE_RAXML_NG)
     return parser
 
 def load_args():
@@ -67,6 +69,9 @@ def load_args():
 
     global PHASTSIM_OPTIONS
     PHASTSIM_OPTIONS = args.phastSimOptions
+
+    global USE_RAXML_NG
+    USE_RAXML_NG = bool(args.RAXMLNG)
 
 def get_tree_length(t):
     
@@ -226,21 +231,39 @@ if __name__ == "__main__":
         )
 
         # try to regenerate the tree with RAxML
-        os.system(f"""raxmlHPC \
-            {RAXML_MODEL_STRING.replace("+", " ")} \
-            -n rax_{i} \
-            -s {OUTPUT_FOLDER}/phastSim_{i}.fasta \
-            -p {np.random.randint(1000000000)} \
-            -w {OUTPUT_FOLDER}/
-        """)
+        if USE_RAXML_NG:
+            os.system(f"""raxml-ng \
+                {RAXML_MODEL_STRING.replace("+", " ")} \
+                --msa {OUTPUT_FOLDER}/phastSim_{i}.fasta \
+                --prefix {OUTPUT_FOLDER}/rax_{i} \
+                --seed {np.random.randint(1000000000)} 
+            """)
+        else:
+            os.system(f"""raxmlHPC \
+                {RAXML_MODEL_STRING.replace("+", " ")} \
+                -n rax_{i} \
+                -s {OUTPUT_FOLDER}/phastSim_{i}.fasta \
+                -p {np.random.randint(1000000000)} \
+                -w {OUTPUT_FOLDER}/
+            """)
 
-        raxml_estimated_rates = get_raxml_rates(f"{OUTPUT_FOLDER}/RAxML_info.rax_{i}")
+        if USE_RAXML_NG:
+            raxml_info_file = f""
+        else:
+            raxml_info_file = f"RAxML_info.rax_{i}"
+
+        raxml_estimated_rates = get_raxml_rates(f"{OUTPUT_FOLDER}/{raxml_info_file}")
 
         # put the stuff that we want into an output file
         # that is:
         # i, input_gtr_rates, estimated_gtr_rates, input_tree_length, output_tree_length, RF_distance
         input_tree = Tree(newick=f"{OUTPUT_FOLDER}/tree_{i}.tree")
-        output_tree = Tree(f"{OUTPUT_FOLDER}/RAxML_result.rax_{i}")
+
+        if USE_RAXML_NG:
+            output_tree = Tree(f"{OUTPUT_FOLDER}/rax_{i}.raxml.bestTree")
+        else:
+            output_tree = Tree(f"{OUTPUT_FOLDER}/RAxML_result.rax_{i}")
+
         rf_dist = input_tree.robinson_foulds(output_tree, unrooted_trees=True)[0]
 
         gtr_rates_formatted = np.array([float(x) for x in gtr_rates_string_formatted.split(" ")])
@@ -251,10 +274,10 @@ if __name__ == "__main__":
         )
 
         if PHASTSIM_OPTIONS != "":
-            output_alpha = get_raxml_alpha(f"{OUTPUT_FOLDER}/RAxML_info.rax_{i}", phastSim_alpha)
-            output_category_rates = get_raxml_category_rates(f"{OUTPUT_FOLDER}/RAxML_info.rax_{i}")
-            output_category_probs = get_raxml_category_probs(f"{OUTPUT_FOLDER}/RAxML_info.rax_{i}")
-            output_invariable_proportion = get_raxml_invariable_proportion(f"{OUTPUT_FOLDER}/RAxML_info.rax_{i}")
+            output_alpha = get_raxml_alpha(f"{OUTPUT_FOLDER}/{raxml_info_file}", phastSim_alpha)
+            output_category_rates = get_raxml_category_rates(f"{OUTPUT_FOLDER}/{raxml_info_file}")
+            output_category_probs = get_raxml_category_probs(f"{OUTPUT_FOLDER}/{raxml_info_file}")
+            output_invariable_proportion = get_raxml_invariable_proportion(f"{OUTPUT_FOLDER}/{raxml_info_file}")
 
             summary_file.write(f"{i}, {gtr_rates_string_formatted}, {raxml_estimated_rates}, {get_tree_length(input_tree)}, {get_tree_length(output_tree)}, {rf_dist}, {normalised_gtr_error_pc}, {phastSim_alpha}, {phastSim_category_rates}, {phastSim_category_probs}, {invariable_options}, {output_alpha}, {output_category_rates}, {output_category_probs}, {output_invariable_proportion}\n")
         else:
