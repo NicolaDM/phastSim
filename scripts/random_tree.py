@@ -5,8 +5,9 @@ Random Phylogenetic Tree Generator.
 This has been built on top of 
 https://raw.githubusercontent.com/tresoldi/ngesh/master/ngesh/random_tree.py
 but has been modified to make it more efficient for large tree.
+The new version of ngesh might however have included these improvements as default.
 
-This script provides function to generate random phylogenetic trees in
+This script provides a function to generate random phylogenetic trees in
 a Yule (birth only) or Birth-Death model, setting different generation
 parameters and limiting the tree in terms of number of leaves and/or
 evolution time.

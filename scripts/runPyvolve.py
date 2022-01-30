@@ -8,12 +8,7 @@ import argparse
 from ete3 import Tree
 import time
 
-#NICOLA THINGS TO DO: 
-#ALLOW RANDOM ROOT GENOME
-
-#script to compare the running time of phastSim with pyvolve, seq-gen and indelible.
-
-# python2 compareSimulators.py --path /Users/demaio/Desktop/coronavirus/simulations/ --nLeaves 100 --categoryProbs 0.2 0.2 0.2 0.2 0.2 --categoryRates 0.01 0.1 0.2 0.5 1.0 --pyvolveSim --seqgenSim --indelibleSim
+#script to run pyvolve
 
 parser = argparse.ArgumentParser(description='Compare simulators, in particular phastSim, seq-gen, indelible and pyvolve.')
 parser.add_argument('--path',default="", help='Path where to run simulations.')
