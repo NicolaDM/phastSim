@@ -84,18 +84,17 @@ This approach is more efficient than alternatives when branch lengths are short,
 When a large proportion of the genome is expected to mutate on each branch, however, this approach might be slower than traditional methods.
 Given a large phylogeny (say, >10,000 tips) and divergence levels typical for genomic epidemiology, this approach will be faster than other methods.
 Even when simulating under a codon model, whole genome, and 100,000 sequences, simulations should only take a few seconds.
-For small phylogenies (<1,000 tips) or long branches (many mutation events per branch on average), and stationary nucleotide models, the software [seq-gen](http://tree.bio.ed.ac.uk/software/seqgen/) by Rambaut and Grassly will typically be more efficient.
-This script does not yet allow simulations of indels - for this you will probably need [INDELible](http://abacus.gene.ucl.ac.uk/software/indelible/) by Fletcher and Yang.
+For small phylogenies (<1,000 tips) or long branches (many mutation events per branch on average), the software [seq-gen](http://tree.bio.ed.ac.uk/software/seqgen/) by Rambaut and Grassly will typically be more efficient.
+PhastSim offers a broad choice of sequence evolution models, including indels (similarly to [INDELible](http://abacus.gene.ucl.ac.uk/software/indelible/) by Fletcher and Yang), non-reversible non-stationary substitution models, and codon models.
 
-Output can be created in FASTA format (`--createFasta`) and/or PHYLIP format (`--createPhylip`).
-The standard output is however given as a list of modified bases w.r.t. the reference for each sample.
+Output can be created in FASTA format (`--createFasta`) and/or PHYLIP format (`--createPhylip`); in the case of simulations with indels, the FASTA and PHYLIP formats will contain unaligned sequences.
+The standard output is given as a list of modified bases w.r.t. the reference for each sample.
 The history of mutation events can also be created and stored in an annotated Newick format (`--createNewick`).
 A .info text file, describing the evolutionoary rates for each site of the genome, can also be created ('--createInfo').
 
 Nucleotide or codon evolution models are allowed.
-A nuclotide model is defined by a set of 12 rates, each for a non-diagonal entry of an UNREST substitution matrix https://doi.org/10.1089/1066527041410472.
+A nuclotide model can defined by a set of 12 rates, each for a non-diagonal entry of an UNREST substitution matrix https://doi.org/10.1089/1066527041410472; this allows the inderct specification of any nucleotide substitution model, but the user can alternatively also directly select a GTR, HKY, oor JC model.
 By default, neutral mutation rates as inferred from SARS-CoV-2 https://doi.org/10.1101/2021.01.14.426705 are assumed.
-Any other simpler nucleotide model can be specified by defining the corresponding entries in the UNREST matrix.
 
 We allow users to specify mutation rate variation in multiple ways:
 1) With a finite number of discrete mutation rate categories, or a continuous gamma distribution.
@@ -107,10 +106,13 @@ See also https://doi.org/10.1093/molbev/mss266.
 In addition, a codon model has a codon-specific omega parameter that increases or decreases the rate of nonsynonymous changes at the given codon.
 Variation in omega can be defined with a finite number of omega classes, or with a continuous gamma distribution.
 
-Thanks to the new algorithm in phastSim, the computational demand is almost not affected by the complexity of chosen evolution model.
+Thanks to the new algorithm in phastSim, the computational demand is almost unaffected by the complexity of chosen evolution model.
 
 Rates in phastSim are normalized so that the expected number of substitutions per nucleotide site per unit branch length at the root is 1.
 This is true even when simulating under a codon model. If instead one wants branch lengths to be interpreted as number of expected substitutions per codon per unit time, then one needs to rescale the input tree by a factor of 3 using, for example, option `--scale 0.3333333`. Finally, since the substitution model will usually not  be assumed to be at equilibrium, the total evolution rate might typically decrease a bit moving downstream from the root to the tips of the phylogenetic tree.
+
+Indels can also be simulated, under a similar model as INDELible, using option `--indels`. Insertion rate and deletion rate can separately bespecified with options `--insertionRate` and `--deletionRate`. Insertion length distribution and deletion length distribution can be specified with options `--insertionLength` and `--deletionLength`, which offer a number of possible types of distributions.
+
 
 ## Other included scripts
 Other scripts (in the "scripts" subdirectory) which are not required to run `phastSim`, but are useful for support, are also included in this repository. These are:
