@@ -524,7 +524,12 @@ class phastSimRun:
             print("error, indel model only allowed with hierarchical mode, remove --noHierarchy")
             print("exiting")
             exit()
-        
+
+        if (not self.args.insertionRate) or (not self.args.deletionRate):
+            print("error, indel models must specify --insertionRate and --deletionRate")
+            print("exiting")
+            exit()
+
         def parse_indel_rates(cli_parameters):
             model = cli_parameters[0]
             parameter = [float(x) for x in cli_parameters[1:]]
@@ -567,6 +572,11 @@ class phastSimRun:
         # generate a stream of random indel lengths to be passed to the genomeTree_hierarchical
         def parse_indel_args(argument_name):
             indel_data = getattr(self.args, argument_name)
+
+            if not indel_data:
+                print("error, indel model requires --insertionLength and --deletionLength")
+                print("exiting")
+                exit()
 
             distribution = indel_data[0].upper()
             parameters = indel_data[1:]
