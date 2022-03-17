@@ -82,7 +82,7 @@ def boxplot(valuesLists,axisLabels,plotFileName,labels,colors, xLabel,topPlot,bo
     fig.savefig(plotFileName)
     plt.close()
 
-def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,bottom=0.0001, top=None, degreeSkew=45, memoryTitle=False, logXaxis=True):
+def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,bottom=0.0001, top=None, degreeSkew=45, memoryTitle=False, logXaxis=True,legendPosition='upper left'):
     
     mean_times = []
     errors = []
@@ -104,14 +104,14 @@ def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,bottom=0.0001, top
     # Hide these grid behind plot objects
     ax1.set_axisbelow(True)
     if memoryTitle:
-        ax1.set_title('Comparison of Simulation Memory Usage')
+        ax1.set_title('Comparison of Simulation Memory Usage', fontsize=26)
     else:
-        ax1.set_title('Comparison of Simulation Running Times')
-    ax1.set_xlabel(topPlot)
+        ax1.set_title('Comparison of Simulation Running Times', fontsize=26)
+    ax1.set_xlabel(topPlot, fontsize=22)
     if memoryTitle:
-        ax1.set_ylabel('Peak Memory usage (kB)')
+        ax1.set_ylabel('Peak Memory usage (kB)', fontsize=22)
     else:
-        ax1.set_ylabel('Time (seconds)')
+        ax1.set_ylabel('Time (seconds)', fontsize=22)
 
     if logXaxis:
         ax1.set_xscale('log')
@@ -122,8 +122,10 @@ def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,bottom=0.0001, top
     reordered_numbers = [0, 1, 2, 4, 6, 5, 3]
     for i in range(len(labels)):
         ax1.errorbar(x, mean_times[i, :], yerr=errors[i, :], marker='x', c=colors[i], label=labels[i], capsize=2)
+
+    ax1.tick_params(labelsize=16)
     
-    plt.legend(loc='upper left')
+    plt.legend(loc=legendPosition, prop={'size': 22})
     #plt.show()
     fig.savefig(plotFileName,bbox_inches='tight')
 
@@ -201,14 +203,14 @@ times500000=[[46.73336601257324, 42.00509166717529, 44.83511996269226, 38.597096
 
 #nLeaves=[10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000]
 nLeaves=["10","20","50","100","200","500","1000","2000","5000","10^4","2x10^4","5x10^4","10^5","2x10^5","5x10^5"]
-times=[times10,times20,times50,times100,times200,times500,times1000,times2000,times5000,times10000,times20000,times50000,times100000,times200000,times500000]
+times=[times10[1:],times20[1:],times50[1:],times100[1:],times200[1:],times500[1:],times1000[1:],times2000[1:],times5000[1:],times10000[1:],times20000[1:],times50000[1:],times100000[1:],times200000[1:],times500000[1:]]
 
 
 
 #generate boxplot of general running times
 ##boxplot(times,names,pathSimu+"boxplot_times_general.pdf",nLeaves,colors,'Number of tips',70)
 nLeaves = [10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000]
-errplot(times,names,pathSimu+"errplot_times_general.pdf",nLeaves,colors,'Number of tips',70)
+errplot(times,names[1:],pathSimu+"errplot_times_general.pdf",nLeaves,colors[1:],'Number of tips',70,legendPosition='lower right')
 
 
 
@@ -239,7 +241,7 @@ times=[[timeBac100[1],timeBac100[3],timeBac100[5]],[timeBac1000[1],timeBac1000[3
 
 #boxplot(times,names,pathSimu+"boxplot_times_bacteria.pdf",nLeaves,colors,'Number of tips',1000, bottom=1.0)
 nLeaves = [100, 1000, 10000, 100000, 1000000]
-errplot(times,names,pathSimu+"errplot_times_bacteria.pdf",nLeaves,colors,'Number of tips',1000, 1.0)
+errplot(times,names,pathSimu+"errplot_times_bacteria.pdf",nLeaves,colors,'Number of tips',1000, 1.0,legendPosition='lower right')
 
 
 
@@ -416,10 +418,10 @@ times200000=[[19.798725605010986, 20.04753065109253, 18.858177423477173, 15.6216
 times500000=[[39.163872957229614, 65.84751892089844, 94.76111960411072, 78.82037258148193, 73.21756148338318, 59.36643314361572, 84.06567239761353, 64.82695484161377, 52.00502038002014, 69.0603768825531], [152.96751642227173, 248.12140607833862, 101.49225449562073, 154.42498326301575, 112.9387788772583, 164.9132342338562, 137.6188988685608, 143.5222680568695, 167.9083924293518, 171.09078526496887], [505.4446060657501, 497.0394847393036, 327.01503586769104, 489.56390738487244, 381.87469720840454, 353.3144910335541, 412.29223227500916, 430.8951327800751, 463.9020953178406, 391.6625156402588], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
 #[[26.597529888153076, 26.255186319351196, 25.45920157432556, 26.60333824157715, 25.42155122756958, 26.99942398071289, 27.04834246635437, 26.52974557876587, 25.9949049949646], [55.8808376789093, 55.209341526031494, 58.32216477394104, 55.4736225605011, 58.93256855010986, 55.726035594940186, 55.22979021072388, 59.64866805076599, 55.40555381774902],['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN' ], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN' ], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN' ]]
 nLeaves=["10","20","50","100","200","500","1000","2000","5000","10^4", "2x10^4", "5x10^4","10^5", "2x10^5", "5x10^5"]
-times=[times10,times20,times50,times100,times200,times500,times1000,times2000,times5000,times10000, times20000, times50000, times100000, times200000, times500000]
+times=[times10[1:],times20[1:],times50[1:],times100[1:],times200[1:],times500[1:],times1000[1:],times2000[1:],times5000[1:],times10000[1:], times20000[1:], times50000[1:], times100000[1:], times200000[1:], times500000[1:]]
 #boxplot(times, names, pathSimu+"boxplot_times_indels.pdf", nLeaves, colors, "Number of tips", 40)
 nLeaves = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000]
-errplot(times, names, pathSimu+"errplot_times_indels.pdf", nLeaves, colors,'Number of tips', 40)
+errplot(times, names[1:], pathSimu+"errplot_times_indels.pdf", nLeaves, colors[1:],'Number of tips', 40)
 
 
 
@@ -452,13 +454,13 @@ nLeaves=["10","20","50","100","200","500","1000","2000","5000","10^4","2x10^4","
 
 #boxplot(memory,names,pathSimu+"boxplot_memory_general.pdf",nLeaves,colors,'Number of tips',10000000, bottom=1000.0, memoryTitle=True)
 nLeaves=[10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000]
-errplot(memory,names,pathSimu+"errplot_memory_general.pdf",nLeaves,colors,'Number of tips', memoryTitle=True)
+errplot(memory,names,pathSimu+"errplot_memory_general.pdf",nLeaves,colors,'Number of tips', memoryTitle=True,legendPosition='lower right')
 
 
 # Memory plot for bacteria experiment
 
 #generate boxplot for bacterial simulations
-names=["phastSim","phastSim vanilla","SeqGen"]
+names=["phastSim","phastSim non-hierarchical","SeqGen"]
 colors=["red","orange","purple"]
 
 memoryBac100=[['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [5710712, 5723096, 5690412, 5696832, 5692744, 5713160, 5708900, 5698532, 5694956, 5694884], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [5709724, 5707348, 5715152, 5694360, 5697520, 5694396, 5715072, 5727400, 5708924, 5722840], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], [941172, 941156, 941088, 941024, 941312, 941024, 941028, 941088, 941080, 941040], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN'], ['NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN', 'NaN']]
@@ -472,7 +474,7 @@ memory=[[memoryBac100[1],memoryBac100[3],memoryBac100[5]],[memoryBac1000[1],memo
 
 #boxplot(memory,names,pathSimu+"boxplot_memory_bacteria.pdf",nLeaves,colors,'Number of tips',100000000, bottom=1000.0, memoryTitle=True)
 nLeaves = [100, 1000, 10000, 100000, 1000000]
-errplot(memory,names,pathSimu+"errplot_memory_bacteria.pdf",nLeaves,colors,'Number of tips', memoryTitle=True)
+errplot(memory,names,pathSimu+"errplot_memory_bacteria.pdf",nLeaves,colors,'Number of tips', memoryTitle=True,legendPosition='lower right')
 
 # codon simulations - simulations for different evolutionary models
 
@@ -510,7 +512,7 @@ colors=["red","purple","yellow","brown"]
 models=["nucleotide","nuc+10cat","nuc+alpha","codon","codon+10cat","codon+alpha"]
 times=[[phastSim20000,seqgen1000,INDELible10,indelible2_100],[phastSim20000_10cat,seqgen1000_10cat,INDELible10_10cat,indelible2_100_10cat],[phastSim20000_alpha,seqgen1000_alpha,INDELible10_alpha,indelible2_100_alpha],[phastSim20000_codon,NaNs,INDELible10_codon,indelible2_100_codon],[phastSim20000_codon_10cat,NaNs,INDELible10_codon_10cat,indelible2_100_codon_10cat],[phastSim20000_codon_alpha,NaNs,NaNs,NaNs]]
 boxplot(times,names,pathSimu+"boxplot_memory_models.pdf",models,colors,'Evolutionary model', 1000000, bottom=1000.0, memoryTitle=True)
-errplot(times,names,pathSimu+"errplot_memory_models.pdf",models,colors,'Evolutionary model', memoryTitle=True,logXaxis=False)
+errplot(times,names,pathSimu+"errplot_memory_models.pdf",models,colors,'Evolutionary model', memoryTitle=True,logXaxis=False,legendPosition='upper right')
 
 # scale simulations
 

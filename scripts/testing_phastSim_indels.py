@@ -5,13 +5,19 @@ from numpy import mean
 from scipy import stats
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import argparse
 
+#©EMBL-European Bioinformatics Institute, 2022
 
 #script that simulates indels in phastSim and compares their distribution to INDELible and makes plots showing the comparison in a few scenarios.
+parser = argparse.ArgumentParser(description='Run simulations of fragments from the human genome to be sequenced pentamer-wise; try to assemble using the pentamers.')
+parser.add_argument('--path',default="/Users/demaio/Desktop/coronavirus/phastSim_resumission_March2022/extensive_testing_indels/", help='path where to find files and plot results.')
+args = parser.parse_args()
+path=args.path
 
 
 
-def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,linestyles,title="Comparison of simulated indel distributions",yAxisLabel="Time (seconds)",logY=True,ymin=None,ymax=None,violin=True,xticks=None):
+def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,linestyles,title="Comparison of simulated indel distributions",yAxisLabel="Time (seconds)",logY=False,ymin=None,ymax=None,violin=True,xticks=None):
 	
 	values=[]
 	mean_times = []
@@ -54,12 +60,16 @@ def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,linestyles,title="
 	fig = plt.figure(figsize=(15, 9))
 	ax1 = fig.add_subplot(111)
 	ax1.set_axisbelow(True)
-	ax1.set_title(title, fontsize=22)
-	ax1.set_xlabel(topPlot, fontsize=18)
-	ax1.set_ylabel(yAxisLabel, fontsize=18)
+	ax1.set_title(title, fontsize=26)
+	ax1.set_xlabel(topPlot, fontsize=22)
+	ax1.set_ylabel(yAxisLabel, fontsize=22)
 	#ax1.xticks(x, n_leaves, rotation=40)
 	ax1.set_xticks(x, minor=False)
 	ax1.set_xticklabels(n_leaves, rotation=40, fontdict=None, minor=False)
+	#plt.xticks(fontsize=18)
+	#plt.yticks(fontsize=18)
+	ax1.tick_params(labelsize=16)
+
 	if ymin!=None:
 		ax1.set_ylim([ymin, ymax])
 	#ax1.set_xscale('log')
@@ -91,7 +101,7 @@ def errplot(times,labels,plotFileName,n_leaves,colors,topPlot,linestyles,title="
 	#if violin:
 	#	plt.legend(patches, labels, loc='upper left')
 	#else:
-	plt.legend(loc='upper left')
+	plt.legend(loc='upper left', prop={'size': 22})
 	fig.savefig(plotFileName,bbox_inches='tight')
 
 
@@ -116,7 +126,7 @@ for i in range(len(parameters)):
     #newickTree2="(S1:"+str(parameters[i][0])+",S2:0.0);"
     newickTree="(S1:"+str(parameters[i][0])+",S2:0.0);"
     
-    file=open("/Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/tree_par"+str(i+1)+".tree","w")
+    file=open(path+"tree_par"+str(i+1)+".tree","w")
     file.write(newickTree+"\n")
     file.close()
     for r in range(numReplicates+minimumRep):
@@ -126,9 +136,9 @@ for i in range(len(parameters)):
             if r>=minimumRep:
                 print(r)
                 os.chdir('/Users/demaio/Documents/GitHub/phastSim')
-                os.system("python3 bin/phastSim --rootGenomeLength "+str(rootGenomeLength)+" --outpath /Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/ --seed "+str(r+1)+" --treeFile /Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/tree_par"+str(i+1)+".tree --scale 1.0 --outputFile simulationPhastSim_par"+str(i+1)+"_rep"+str(r+1)+"  --indels --insertionRate CONSTANT "+str(parameters[i][1])+" --deletionRate CONSTANT "+str(parameters[i][3])+" --insertionLength GEOMETRIC "+str(parameters[i][2])+" --deletionLength GEOMETRIC "+str(parameters[i][4])+"  \n")
+                os.system("python3 bin/phastSim --rootGenomeLength "+str(rootGenomeLength)+" --outpath "+path+" --seed "+str(r+1)+" --treeFile "+path+"tree_par"+str(i+1)+".tree --scale 1.0 --outputFile simulationPhastSim_par"+str(i+1)+"_rep"+str(r+1)+"  --indels --insertionRate CONSTANT "+str(parameters[i][1])+" --deletionRate CONSTANT "+str(parameters[i][3])+" --insertionLength GEOMETRIC "+str(parameters[i][2])+" --deletionLength GEOMETRIC "+str(parameters[i][4])+"  \n")
         #investigate phastSim output
-        file=open("/Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/simulationPhastSim_par"+str(i+1)+"_rep"+str(r+1)+".txt")
+        file=open(path+"simulationPhastSim_par"+str(i+1)+"_rep"+str(r+1)+".txt")
         line=file.readline()
         line=file.readline()
         while line!="\n" and line!="" and line[0]!=">":
@@ -147,7 +157,7 @@ for i in range(len(parameters)):
     #run INDELible
     dataIndelible.append([])
     if runIndelible:
-        file=open("/Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/control.txt","w")
+        file=open(path+"control.txt","w")
         file.write("[TYPE] NUCLEOTIDE 1\n")
         file.write("[MODEL]    modelname\n")
         file.write("  [submodel]     JC\n")
@@ -160,10 +170,10 @@ for i in range(len(parameters)):
         file.write("  [treename modelname "+str(rootGenomeLength)+"]\n")
         file.write("[EVOLVE] partitionname "+str(numReplicates+minimumRep)+" INDELible_sim_par"+str(i+1)+"\n")
         file.close()
-        os.chdir('/Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing')
+        os.chdir(path)
         os.system("/Applications/INDELibleV1.03/src/indelible \n")
     #now read INDELible output
-    file=open("/Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/INDELible_sim_par"+str(i+1)+"_TRUE.phy")
+    file=open(path+"INDELible_sim_par"+str(i+1)+"_TRUE.phy")
     line=file.readline()
     for r in range(numReplicates+minimumRep):
         dataIndelible[i].append(([],[]))
@@ -271,7 +281,7 @@ for n in range(len(nLeaves)):
 	plotValues.append([])
 	for m in range(len(formats)):
 		plotValues[n].append(values[m][n])
-errplot(plotValues,formats,"/Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/"+"plotNumInsetions.pdf",nLeaves,colors,'Simulation Scenario',None,title=title,yAxisLabel=yAxisLabel)
+errplot(plotValues,formats,path+"plotNumInsetions.pdf",nLeaves,colors,'Simulation Scenario',None,title=title,yAxisLabel=yAxisLabel)
 
 title="Comparison of simulated insertion lengths"
 yAxisLabel="Length of insertions"
@@ -289,7 +299,7 @@ for n in range(len(nLeaves)):
 	plotValues.append([])
 	for m in range(len(formats)):
 		plotValues[n].append(values[m][n])
-errplot(plotValues,formats,"/Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/"+"plotLenInsetions.pdf",nLeaves,colors,'Simulation Scenario',None,title=title,yAxisLabel=yAxisLabel)
+errplot(plotValues,formats,path+"plotLenInsetions.pdf",nLeaves,colors,'Simulation Scenario',None,title=title,yAxisLabel=yAxisLabel)
 
 title="Comparison of number of simulated deletions"
 yAxisLabel="Number of simulated events"
@@ -307,7 +317,7 @@ for n in range(len(nLeaves)):
 	plotValues.append([])
 	for m in range(len(formats)):
 		plotValues[n].append(values[m][n])
-errplot(plotValues,formats,"/Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/"+"plotNumDeletions.pdf",nLeaves,colors,'Simulation Scenario',None,title=title,yAxisLabel=yAxisLabel)
+errplot(plotValues,formats,path+"plotNumDeletions.pdf",nLeaves,colors,'Simulation Scenario',None,title=title,yAxisLabel=yAxisLabel)
 
 title="Comparison of simulated deletion lengths"
 yAxisLabel="Length of deletions"
@@ -325,4 +335,4 @@ for n in range(len(nLeaves)):
 	plotValues.append([])
 	for m in range(len(formats)):
 		plotValues[n].append(values[m][n])
-errplot(plotValues,formats,"/Users/demaio/Desktop/phastSim-main_Dec2021/extensive_testing/"+"plotLenDeletions.pdf",nLeaves,colors,'Simulation Scenario',None,title=title,yAxisLabel=yAxisLabel)
+errplot(plotValues,formats,path+"plotLenDeletions.pdf",nLeaves,colors,'Simulation Scenario',None,title=title,yAxisLabel=yAxisLabel)
