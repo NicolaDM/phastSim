@@ -751,7 +751,7 @@ class phastSimRun:
 
 class GenomeTree_hierarchical:
     def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, 
-                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose, noNorm):
+                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose, noNorm, mutationsTSVinput):
 
         self.codon = codon
         self.ref = ref
@@ -781,6 +781,7 @@ class GenomeTree_hierarchical:
         self.deletionLength = deletionLength
         self.scale = scale
         self.noNorm = noNorm
+        self.mutationsTSVinput = mutationsTSVinput
 
         if not codon:
             self.nTerminalNodes = len(ref)
@@ -973,6 +974,8 @@ class GenomeTree_hierarchical:
         else:
             # split the considered part of the genome in two, assign each half to both children,
             # then call the populate function iteratively on the children.
+            if self.mutationsTSVinput:
+                node.genomePos = [pos_left, pos_right]
             middle = pos_left + int((pos_right - pos_left) / 2)
             firstChild = genomeNode(level=node.level)
             secondChild = genomeNode(level=node.level)
@@ -1376,6 +1379,8 @@ class GenomeTree_hierarchical:
                 parentGenomeNode.belowNodes[childI] = newChild
                 newChild.isTerminal = child.isTerminal
                 newChild.rate = child.rate
+                if self.mutationsTSVinput:
+                    newChild.genomePos = child.genomePos
                 if child.isTerminal:
                     newChild.refNode = child.refNode
                     newChild.allele = child.allele
@@ -1394,11 +1399,13 @@ class GenomeTree_hierarchical:
     def applyMutation(self, parentGenomeNode, level, mutEvent):
         # find position to mutate along the genome, and update temporary genome tree structure as you go.
         # this one is only used for mutations that are forced by the user
-        node = parentGenomeNode.refNode
-        a = parentGenomeNode.allele
+
 
         if parentGenomeNode.isTerminal:
+
             # reached a terminal node, now force the mutation event at the position and update all rates
+            node = parentGenomeNode.refNode
+            a = parentGenomeNode.allele
             j=self.alleles[mutEvent.target]
 
             if self.verbose:
@@ -1416,7 +1423,10 @@ class GenomeTree_hierarchical:
             # still at an internal genome node.
             # choose which of the two children genome nodes to move into
             pos=mutEvent.genomePos
-            child1Pos=parentGenomeNode.belowNodes[0].refNode.genomePos
+            if parentGenomeNode.belowNodes[0].isTerminal:
+                child1Pos = [parentGenomeNode.genomePos[0]] * 2
+            else:
+                child1Pos=parentGenomeNode.belowNodes[0].genomePos
 
             if pos>=child1Pos[0] and pos<=child1Pos[1]:
                 parentGenomeNode.rate = parentGenomeNode.belowNodes[1].rate
@@ -1435,7 +1445,7 @@ class GenomeTree_hierarchical:
                 newChild = genomeNode(level=level)  
                 parentGenomeNode.belowNodes[childI] = newChild
                 newChild.isTerminal = child.isTerminal
-                newChild.refNode=child.refNode
+                newChild.genomePos = child.genomePos
                 if child.isTerminal:
                     newChild.refNode = child.refNode
                     newChild.allele = child.allele
@@ -1470,6 +1480,7 @@ class GenomeTree_hierarchical:
         #Go through the input mutation events at the current branch and apply them to the genome tree.
         if childNode.name in preMutationsBranches:
             newGenomeNode = genomeNode(level=level)
+            newGenomeNode.genomePos = parentGenomeNode.genomePos
             newGenomeNode.belowNodes = list(parentGenomeNode.belowNodes)
             for m in preMutationsBranches[childNode.name]:
                 pos=m[0]
@@ -1495,6 +1506,9 @@ class GenomeTree_hierarchical:
         #if currTime < bLen:
             newGenomeNode = genomeNode(level=level)
             newGenomeNode.belowNodes = list(parentGenomeNode.belowNodes)
+
+            if self.mutationsTSVinput:
+                newGenomeNode.genomePos = parentGenomeNode.genomePos
         
         elif (not (childNode.name in preMutationsBranches)):
             newGenomeNode = parentGenomeNode
