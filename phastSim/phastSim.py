@@ -171,6 +171,9 @@ def setup_argument_parser():
     parser.add_argument('--eteFormat',
                         help='Set an ete3 parsing mode with which to read the input tree newick.',
                         type=int,default=0)
+    parser.add_argument('--chromosomeName', 
+                        help='Sets the name of the chromosome in the MAT output.',
+                        type=str, default='')
     return parser
 
 
@@ -1995,23 +1998,28 @@ class GenomeTree_hierarchical:
             file.close()
 
 
-    def write_genome_mat(self, tree, output_path, output_file):
+    def write_genome_mat(self, tree, output_path, output_file, chromosome):
 
         mat = protobuf.data()
         mat.newick = tree.write(format=1)
 
-        self.writeGenomeMAT(tree, mat)
+        if not chromosome:
+            from Bio import SeqIO
+            chromosome = SeqIO.read(self.args.reference, format='fasta').id
+
+        self.writeGenomeMAT(tree, mat, chromosome)
 
         f = open(output_path + output_file + ".mat.pb", "wb")
         f.write(mat.SerializeToString())
         f.close()
 
-    def writeGenomeMAT(self, node, mat):
+    def writeGenomeMAT(self, node, mat, chromosome):
 
         _ = mat.metadata.add()
         mutations_protobuf = mat.node_mutations.add()
         for m in node.mutations:
             m_pb = mutations_protobuf.mutation.add()
+            m_pb.chromosome = chromosome
             m_pb.position = m.genomePos + 1
 
             if getattr(m, "insertionPos", 0):

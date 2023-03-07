@@ -256,7 +256,12 @@ if args.createMAT:
 
     else:
         
-        genome_tree.write_genome_mat(tree=t, output_path=args.outpath, output_file=args.outputFile)
+        genome_tree.write_genome_mat(
+            tree=t, 
+            output_path=args.outpath, 
+            output_file=args.outputFile, 
+            chromosome=args.chromosomeName
+        )
         time4 = time.time() - start
         print("Total time after writing protobuf file: "+str(time4))
 
