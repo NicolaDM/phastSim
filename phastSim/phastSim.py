@@ -753,9 +753,10 @@ class phastSimRun:
 
 
 class GenomeTree_hierarchical:
-    def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates, 
-                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose, noNorm, mutationsTSVinput):
+    def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates,
+                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose, noNorm, mutationsTSVinput, args):
 
+        self.args = args
         self.codon = codon
         self.ref = ref
         self.refList = list(ref)
@@ -2044,7 +2045,7 @@ class GenomeTree_hierarchical:
                     m_pb.mut_nuc.append(self.alleles[ch])
 
         for c in node.children:
-            self.writeGenomeMAT(c, mat)
+            self.writeGenomeMAT(c, mat, chromosome)
 
 
 
