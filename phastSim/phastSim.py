@@ -2004,10 +2004,6 @@ class GenomeTree_hierarchical:
         mat = protobuf.data()
         mat.newick = tree.write(format=1)
 
-        if not chromosome:
-            from Bio import SeqIO
-            chromosome = SeqIO.read(self.args.reference, format='fasta').id
-
         self.writeGenomeMAT(tree, mat, chromosome)
 
         f = open(output_path + output_file + ".mat.pb", "wb")
