@@ -142,8 +142,7 @@ if hierarchy:
         infoFile=infoFile,
         verbose=sim_run.args.verbose,
         noNorm=sim_run.args.noNormalization,
-        mutationsTSVinput=sim_run.args.mutationsTSVinput,
-        args = args)
+        mutationsTSVinput=sim_run.args.mutationsTSVinput)
 
     time2 = time.time() - start
     print("Total time after initializing: " + str(time2))
@@ -256,7 +255,13 @@ if args.createMAT:
         print("Protocol buffer output only supported in hierarchical mode, remove --noHierarchy.")
 
     else:
-        
+        if not args.chromosomeName:
+            from Bio import SeqIO
+            chromosome = SeqIO.read(args.reference, format='fasta').id
+
+        else:
+            chromosome = args.chromosomeName
+
         genome_tree.write_genome_mat(
             tree=t, 
             output_path=args.outpath, 

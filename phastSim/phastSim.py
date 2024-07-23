@@ -754,9 +754,8 @@ class phastSimRun:
 
 class GenomeTree_hierarchical:
     def __init__(self, nCodons, codon, ref, gammaRates, omegas, mutMatrix, hyperCategories, hyperMutRates,
-                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose, noNorm, mutationsTSVinput, args):
+                indels, insertionRate, insertionLength, insertionFrequencies, deletionRate, deletionLength, scale, infoFile, verbose, noNorm, mutationsTSVinput):
 
-        self.args = args
         self.codon = codon
         self.ref = ref
         self.refList = list(ref)
