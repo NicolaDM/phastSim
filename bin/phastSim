@@ -255,7 +255,13 @@ if args.createMAT:
         print("Protocol buffer output only supported in hierarchical mode, remove --noHierarchy.")
 
     else:
-        
+        if not args.chromosomeName:
+            from Bio import SeqIO
+            chromosome = SeqIO.read(args.reference, format='fasta').id
+
+        else:
+            chromosome = args.chromosomeName
+
         genome_tree.write_genome_mat(
             tree=t, 
             output_path=args.outpath, 
