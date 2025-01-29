@@ -210,7 +210,8 @@ specifying the category at each nucleotide.
 
 ### How are genome positions indexed?
 
-- In all output files, genomes are 1 indexed (the first nucleotide of the genome is at position 1). 
+- The standard output (the concise alignment showing differences with respect to the reference) is 0 indexed.
+The other output files are 1 indexed (the first nucleotide of the genome is at position 1). 
 
 ### Can I run different models for different parts of the genome?
 
