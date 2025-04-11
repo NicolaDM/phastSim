@@ -215,7 +215,7 @@ The other output files are 1 indexed (the first nucleotide of the genome is at p
 
 ### Can I run different models for different parts of the genome?
 
-- No, currently phastSim does not a configuration parameter analogous to the partitions in INDELible and Seq-Gen, though if 
+- No, currently phastSim does not support a configuration parameter analogous to the partitions in INDELible and Seq-Gen, though if 
 we are sent multiple requests for this feature then we will add it. 
 
 ### How can I run phastSim directly in a python terminal or jupyter notebook?
